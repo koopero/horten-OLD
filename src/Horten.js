@@ -19,6 +19,7 @@ if ( process && process['nextTick'] ) {
 	
 */
 
+Horten.Horten = Horten;
 function Horten ( options ) {
 	if ( !options || 'object' != typeof options ) 
 		options = {};
@@ -229,13 +230,13 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 	another. 
 	*/
 	if ( pathLength == 0 ) {
-		touched = merge ( value, d, m, '/', lp );
+		touched = merge ( value, d, m, '/', lp ) || touched;
 	} else {
 		p = path.getSegment( i );
 		m = m && m['_'] && m['_'][p];
-		touched = set ( p, value, d, m, path.toString(), lp );
+		touched = set ( p, value, d, m, path.toString(), lp ) || touched;
 	}
-	
+
 	if ( touched ) {
 		// Trigger the remaining object listeners
 		triggerObjectListeners ( lo );
@@ -243,6 +244,7 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 		// Defer flushing.
 		// nextTick is defined above, and is either a setTimeout( 0 )
 		// or node's process.nextTick()
+
 		nextTick ( function () { that.flush() } );
 	}
 	
@@ -349,6 +351,8 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 			
 			triggerPrimitiveListeners ( lp, path, value );
 		}
+
+		return touched;
 	}
 	
 	function triggerObjectListeners ( listeners ) {
@@ -372,6 +376,7 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 	}
 	
 	function triggerPrimitiveListeners ( listeners, path, value, isDelete ) {
+		
 		for ( var i = 0; i < listeners.length; i ++ ) {
 			
 			var listener = listeners[i];
@@ -562,19 +567,19 @@ Horten.prototype.flush = function () {
 					var path = Path(k).translate( listenerPath, listenerPrefix );
 					
 					if ( o.deleted ) {
-						callback( undefined, path, 'delete', o.origin );
+						callback.call( listener, undefined, path, 'delete', o.origin );
 						
 						if ( o.value !== undefined ) 
-							callback ( o.value, path, 'set', o.origin );
+							callback.call( listener, o.value, path, 'set', o.origin );
 					} else {
-						callback ( o.value, path, 'set', o.origin );
+						callback.call( listener, o.value, path, 'set', o.origin );
 					}
 					
 				}
 			}
 			
 			if ( ob ) {
-				callback ( that.get( listenerPath ), listenerPrefix, ob.method, ob.origin );
+				callback.call( listener, that.get( listenerPath ), listenerPrefix, ob.method, ob.origin );
 			}
 		}
 	}
@@ -587,9 +592,150 @@ Horten.prototype.flush = function () {
 	without calling listeners and all that jazz.
 **/
 
-Horten.merge = function ( a, b, bPath ) 
+Horten.merge = function ( object, value, path, flags ) 
 {
-	// TODO: Not implemented
+	// Make sure path is proper before doing anything.
+	path = Path ( path );
+
+	// Whether we actually changed anything.
+	var touched = false;
+		
+	// The pointer to our current position in data
+	var d = object;
+
+	var p;
+	var i;
+
+	var pathLength = path.length;
+	
+	if ( 'object' != typeof object ) {
+		if ( path == '/') {
+			return value;
+		} else if ( typeof object != typeof value ) {
+			d = object = {};
+		} 
+	}
+
+
+
+	// Walk to one level short of where our given path tells
+	// us to start. This will walk up the d variable.
+	for ( i = 0; i < pathLength - 1; i ++ ) {
+		p = path.getSegment( i );
+		
+		if ( d[p] == null || 'object' != typeof d[p] ) {
+			if ( flags & Horten.setFlags.keepTopology ) {
+				// If the path we're looking to set doesn't
+				// exist, bail here if we're keeping topology.
+				return object;
+			}
+			d = d[p] = {};
+		} else {
+			d = d[p];
+		}
+	}
+
+	
+	/*
+	The actual business of setting the value involves two
+	functions, 'merge' and 'set' recursively calling one
+	another. 
+	*/
+	if ( pathLength == 0 ) {
+		merge ( value, d, '/' );
+	} else {
+		p = path.getSegment( i );
+		set ( p, value, d, path.toString() );
+	}
+	
+
+	
+	return object;
+
+	function merge ( v, d, path) {
+		var touched = false;
+		var keys = v, k, i;
+		
+		if ( Array.isArray ( v ) ) {
+			
+			// We can't iterate arrays using for-in,
+			// so iterate numerically and use those
+			// keys to fill an object so it can be
+			// used with a for-in later.
+			keys = {};
+			for ( i = 0; i < v.length; i ++ ) {
+				if ( v[i] !== undefined ) {
+					keys[String(i)] = true;
+				} 
+			}
+		}
+		
+		// If the replace flag is set, delete all the
+		// keys that don't exist in the new value.
+		if ( flags & Horten.setFlags.replace ) {
+			for ( k in d ) {
+				if ( !(k in keys) ) {
+					delete d[k];
+				}
+			}
+		}
+		
+		// Do the actual setting of keys by calling 'set'.
+		for ( k in keys ) {
+			// If we're keeping topology, and the key doesn't already exist,
+			// forget it.
+			if ( d[k] === undefined && ( flags & Horten.setFlags.keepTopology ) )
+				continue;
+		
+			set ( 
+				k, 
+				v[k], 
+				d, 
+				path + k + '/'
+			 );
+		}
+
+	}
+	
+	
+	function set ( p, value, container, path ) {
+		var touched = false;
+		var currentValue = container[p];
+		
+		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
+		var newIsOb = value != null && 'object' == typeof value;
+		
+		
+		if ( 
+			!newIsOb && 
+			currentValue === value
+		) {
+			// The value is unaltered
+			return false;
+		}
+		
+		if ( 
+			currentIsOb != newIsOb &&
+			( flags & Horten.setFlags.keepTopology )
+		) {
+			// We're not going to alter the topology of the data.
+			return false;
+		}
+		
+		
+		if ( newIsOb ) {
+			if ( !currentIsOb ) {
+				// Upgrading primitive to object ( and losing 
+				// the primitive value ).
+				container[p] = currentValue = {};
+			}
+			merge ( value, currentValue, path );
+		} else {
+			container[p] = value;
+		}
+	}
+	
+
 }
 
 /** 

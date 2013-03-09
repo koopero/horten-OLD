@@ -25,7 +25,10 @@
   "main": "./dist/horten-0.3.0.js",
 
   "keywords": [],
-  "dependencies": { },
+  "dependencies": {
+    "mysql": ">=2.0.0"
+
+  },
   "devDependencies": {
     "grunt": "0.4.x",
     "grunt-contrib-concat": "0.x.x",

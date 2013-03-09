@@ -11,8 +11,9 @@
 		horten: 	// Horten overide, default is Horten.getInstance ()
 	} || path 
 */
+Horten.Listener = Listener;
 
-Listener = function ( options, onData )
+function Listener ( options, onData )
 {
 	if ( typeof options == 'string' ) {
 		options = {
@@ -88,7 +89,11 @@ Listener.prototype.set = function ( value, path, flags )
 	return null;
 }
 
-Listener.prototype.onData = function ( path, value )
+Listener.prototype.onData = function ( path, value, method, origin )
 {
+	console.log ( 'l', path, value );
+	if ( 'function' == typeof this.callback ) {
+		this.callback( path, value, method, origin );
+	}
 	// Do what you will be here.
 }

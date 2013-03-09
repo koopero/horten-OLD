@@ -26,7 +26,7 @@ module.exports = function(grunt) {
             'src/Path.js',
             'src/Horten.js',
             'src/Listener.js',
-            
+            'src/MySQL.js',
 
             'src/export.js',
             'src/outro.js'

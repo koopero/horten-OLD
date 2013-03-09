@@ -36,6 +36,8 @@
 	your code. 
 
 */
+Horten.Path = Path;
+
 function Path ( parse ) {
 
   	// If the input given is already a parsed path,
