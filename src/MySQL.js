@@ -130,9 +130,6 @@ function HortenMySQL ( config ) {
 			sql +=	'`'+this.columns.method+'` char(8), ';
 		
 
-		//if ( this.columns['origin'] )
-		//	sql +=	'`'+this.columns['origin']+'` varchar(255), ';
-
 
 		if ( !this.history )
 			sql +=	'PRIMARY';
@@ -149,23 +146,46 @@ function HortenMySQL ( config ) {
 	//	Initialize Connection
 	//
 
-	var connection = require ( 'mysql' ).createConnection ( config );
-	this.connection = connection;
 
-	connection.on('error', function ( err ) {
-		console.log ( 'Mysql Error', JSON.stringify ( err ) );
-	});
 
-	connection.on('close', function ( err ) {
-		if ( err && that.keepAlive ) {
-			console.log ( that.name, 'Reconnecting' );
-			that.connection = require ( 'mysql' ).createConnection(connection.config);
+
+	function connect ( connection ) {
+		var connection;
+
+		if ( 'object' != typeof config.connection || config.connection == null ) {
+			// Need something!
+			throw 'Connection details not specified';
+		} else if ( config.connection._protocol ) {
+			// A flaky way of determining if the connection passed in config
+			// is a real connection, as oppose to the configuration for one.
+			connection = config.connection
 		} else {
-			that.remove();
+			connection = require ( 'mysql' ).createConnection ( connection );
 		}
-	});	
 
-	connection.connect();
+		connection.on('error', function ( err ) {
+			console.log ( that.name, 'Mysql Error', JSON.stringify ( err ) );
+		});
+
+		connection.on('close', function ( err ) {
+			if ( err && that.keepAlive ) {
+				console.log ( that.name, 'Reconnecting' );
+				connect(connection.config);
+			} else {
+				that.remove();
+			}
+		});	
+
+		that.connection = connection;
+		connection.connect();
+	}
+
+	connect ( config.connection );
+
+	var cc = this.connection.config;
+	this.name = 'mysql://'+cc.host+'/'+cc.database+'.'+this.dataTable;
+
+	
 	this.query = function ( sql, callback ) {
 		if ( that.debug ) {
 			console.log ( that.name, sql );
@@ -174,7 +194,6 @@ function HortenMySQL ( config ) {
 	}
 
 
-	this.name = 'mysql://'+config.host+'/'+config.database+'.'+this.dataTable;
 
 	for ( var i = 0; i < create.length; i ++ ) {
 		var sql = create[i];
@@ -182,7 +201,7 @@ function HortenMySQL ( config ) {
 			function ( err, result ) {
 				if ( err ) {
 					console.log ( err );
-					throw new Error( 'Error running generated SQL!' );
+					throw 'SQL error creating tables.';
 				}
 			}
 		);

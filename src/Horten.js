@@ -145,6 +145,9 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 	// Make sure path is proper before doing anything.
 	path = Path ( path );
 
+	flags = parseInt( flags );
+
+
 	// I <3 JS
 	var that = this;
 	
@@ -185,8 +188,9 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 	// continue, that's fine.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
 		p = path.getSegment( i );
+		var dp = d[p];
 		
-		if ( d[p] == null || 'object' != typeof d[p] ) {
+		if ( dp == null || 'object' != typeof dp ) {
 			if ( flags & Horten.setFlags.keepTopology ) {
 				// If the path we're looking to set doesn't
 				// exist, bail here if we're keeping topology.
@@ -194,7 +198,9 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 			}
 			d = d[p] = {};
 			touched = true;
-		} 
+		} else {
+			d = dp;
+		}
 		
 		
 		if ( m ) {
@@ -283,8 +289,10 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 		for ( k in keys ) {
 			// If we're keeping topology, and the key doesn't already exist,
 			// forget it.
-			if ( d[k] === undefined && ( flags & Horten.setFlags.keepTopology ) )
+			if ( d[k] === undefined && ( flags & Horten.setFlags.keepTopology ) ) {
+				
 				continue;
+			}
 		
 			touched = set ( 
 				k, 
@@ -294,19 +302,20 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 				path + k + '/', lp
 			 ) || touched;
 		}
-		
+
 		return touched;
 	}
 	
 	
 	function set ( p, value, container, meta, path, lp ) {
+
 		var touched = false;
 		var currentValue = container[p];
 		
 		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
 		var newIsOb = value != null && 'object' == typeof value;
 		
-		
+
 		if ( 
 			!newIsOb && 
 			currentValue === value && 
@@ -317,7 +326,7 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 		}
 		
 		if ( 
-			currentIsOb != newIsOb &&
+			( currentIsOb != newIsOb || currentValue === undefined ) &&
 			( flags & Horten.setFlags.keepTopology )
 		) {
 			// We're not going to alter the topology of the data.
@@ -352,6 +361,10 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 			triggerPrimitiveListeners ( lp, path, value );
 		}
 
+		if ( touched && meta && meta.lo ) {
+			triggerObjectListeners ( meta.lo );
+		}
+
 		return touched;
 	}
 	
@@ -363,7 +376,8 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 				continue;
 			
 			listener._objectChange = {
-				origin: origin
+				origin: origin,
+				method: 'set'
 			};
 						
 			if ( !that._pendingListeners )
@@ -428,7 +442,7 @@ Horten.prototype.getMeta = function ( path, create ) {
 	path = Path ( path );
 	
 	var m = this.meta;
-	var i = 0;
+	var i = 0, p;
 	
 	while ( p = path.getSegment ( i ) ) {
 		if ( !m['_'] ) {
@@ -530,6 +544,7 @@ Horten.prototype.removeListener = function ( listener ) {
 			}
 		}
 		
+		delete listener._attachedToPath;
 		//	It would be nice to walk back through the meta tree, deleting
 		//	empty meta objects as we go, but I don't feel like it right now.
 	}
@@ -715,7 +730,7 @@ Horten.merge = function ( object, value, path, flags )
 		}
 		
 		if ( 
-			currentIsOb != newIsOb &&
+			( currentIsOb != newIsOb || currentValue === undefined ) &&
 			( flags & Horten.setFlags.keepTopology )
 		) {
 			// We're not going to alter the topology of the data.
@@ -752,7 +767,7 @@ Horten.merge = function ( object, value, path, flags )
 	@returns 		The flattened object.
  */
 
-Horten.flattenObject = function ( ob, path ) {
+Horten.flatten = function ( ob, path ) {
 	path = Path ( path )
 	
 	var ret = {};
