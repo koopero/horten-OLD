@@ -14,14 +14,13 @@ var connection =
 
 var state = new H.MySQL ( {
 	connection: connection,
-	columns: 	 [ 'origin', 'method', 'time'], 
+	columns: 	 [ 'origin', 'method', 'time', 'number' ], 
 	table: 		'state',
 	debug: 		true
 });
 
 var history = new H.MySQL ( {
 	connection: connection,
-	columns: 	['time','number'], 
 	table: 		'history',
 	pathTable: 	'path',
 	history: 	true,

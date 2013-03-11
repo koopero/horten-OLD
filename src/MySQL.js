@@ -1,21 +1,42 @@
 HortenMySQL.prototype = new Horten.Listener ( false );
 HortenMySQL.prototype.contructor = HortenMySQL;
 
+/**
+	Config
+
+		connection 	Either a mysql connection, or something to pass to mysql.createConnection.
+					Usually in a format like { host: 'local', port: 3306, etc }
+
+		keepAlive 	Set to false to die when the connection closes, rather than
+					reconnecting.
+
+		table 		The main data table.
+
+		pathTable   The table in which to store paths. If this is defined, two tables will
+					be created rather than one. See schema.
+
+		history
+
+		timeOffset	
+
+		timeQuant	
+
+
+
+*/
+
 function HortenMySQL ( config ) {
-
-
-
 
 	if ( config.history ) {
 		if ( config.timeOffset )
-			this.timeOffset = Date.parse ( config.timeOffset );
+			this.timeOffset = -Date.parse ( config.timeOffset );
 		else
 			this.timeOffset = 0;
 
-		if ( config.quantizeTime )
-			this.quantizeTime = parseFloat ( config.quantizeTime );
+		if ( config.timeQuant )
+			this.timeQuant = parseFloat ( config.quantizeTime );
 		else
-			this.quantizeTime = 1;
+			this.timeQuant = 1000;
 
 		this.history = true;
 	} else {
@@ -23,7 +44,7 @@ function HortenMySQL ( config ) {
 	}
 
 	// Questionable magic number
-	this.pathLength = 512;
+	this.pathLength = parseInt ( config.pathLength ) || 640;
 
 	// I <3 JS :P	
 	var that = this;
@@ -36,10 +57,6 @@ function HortenMySQL ( config ) {
 	Listener.call( this, config, this.onData );
 
 	this.debug = !!config.debug;
-	
-	// So we don't get debugs from mysql.
-	delete config.debug;
-
 
 	//
 	//	Apply defaults and parse connection and table parameters.
@@ -238,15 +255,9 @@ HortenMySQL.prototype.escapeDate = function ( date )
 	date = new Date ( date );
 	var timeStamp = date.getTime ();
 
-	if ( this.timeOffset != undefined )
-		timeStamp -= this.timeOffset;
-
-	if ( this.quantizeTime != undefined ) {
-		timeStamp /= this.quantizeTime;
-	} else {
-		timeStamp /= 1000;
-	}
-
+	timeStamp -= this.timeOffset;
+	timeStamp /= this.timeQuant;
+	
 	return parseInt ( timeStamp )
 }
 
@@ -384,52 +395,80 @@ HortenMySQL.prototype.onData = function ( value, path, method, origin )
 
 HortenMySQL.prototype.flush = function ()
 {
+	var c = this.columns;
+	var e = this.connection.escape;
+
 	for ( var i = 0; i < this._queue.length; i ++ ) {
 
 		var out = this._queue[i];
-		var pathId = this.getPathId ( out[0] );
+		var path 	= out[0];
+
+		var pathId = this.getPathId ( path );
 	
 		if ( pathId ) {
 			this._queue.splice ( i, 1 );
 			i --;
-			
+
 			var value 	= out[1];
 			var time 	= out[2];
-			var set		= [];
-			var type 	= typeof value;
 			var method 	= out[3];
-			var origin  = out[4];
+			var origin  = out[4];	
 
-			
-			var sql  = this.history ? 'INSERT' : 'REPLACE';
-			sql 	+= ' `'+this.dataTable+'` SET '; 
+			var sql;
 
-			set.push ( 
-				'`' + ( this.columns.pathId ? this.columns.pathId : this.columns.path )+'`'+
-				"=" +this.connection.escape( pathId ) );
-			
-			if ( this.columns.time  )
-				set.push ( '`'+this.columns.time+"`="+time );
-			
-			if ( origin && this.columns.origin ) 
-				set.push ( '`'+this.columns.origin+"`="+this.connection.escape ( origin ) );
+			if ( method == 'delete' && !this.history ) {
+				var pathLike = '`'+c.path+'` LIKE '+e(path+'%');
 
-			if ( method && this.columns.method ) 
-				set.push ( '`'+this.columns.method+"`="+this.connection.escape ( method ) );
+				sql 	 = 'DELETE FROM ';
+				sql 	+= ' `'+this.dataTable+'` WHERE ';
 
-
-			if ( type == 'number' && this.columns.number ) {
-				set.push ( '`'+this.columns.number+"`="+this.connection.escape ( value ) );
-			} else if ( this.columns.json ) {
-				set.push ( '`'+this.columns.json+'`='+this.connection.escape ( JSON.stringify ( value ) ) );
+				if ( this.pathTable ) {
+					sql += ' `'+c.pathId+'` IN ';
+					sql += ' ( SELECT `'+c.pathId+'` FROM `'+this.pathTable+'` WHERE ';
+					sql += pathLike;
+					sql += ' )'
+				} else {
+					sql += pathLike;
+				}
+				sql += pathEq; 
 			} else {
-				// We've got no columns that hold data, so nothing to write.
-				continue;
+				var set		= [];
+				var type 	= typeof value;
+
+				sql = this.history ? 'INSERT' : 'REPLACE';
+				sql += ' `'+this.dataTable+'` SET '; 
+
+				set.push ( '`' + ( c.pathId ? c.pathId : c.path )+'`'+
+					"=" +e( pathId ) );
+				
+				if ( c.time  )
+					set[c.time] = time;
+				
+				if ( origin && c.origin ) 
+					set[c.origin] = origin;
+				
+				if ( method && c.method ) 
+					set[c.method] = method;
+
+
+				if ( type == 'number' && this.columns.number ) {
+					set[c.number] = value;
+				} else if ( this.columns.json ) {
+					set[c.json] = JSON.stringify ( value );
+				} else {
+					// We've got no columns that hold data, so nothing to write.
+					continue;
+				}
+				
+				sql 	+= e( set );
 			}
 			
-			sql 	+= set.join(',');
-			
 			this.query ( sql );
+		} else {
+			// If we're stuck retrieving pathIds, don't continue.
+			// Hopefully, this will prevent things being out of
+			// order, especially deletes.
+			break;
 		}
 	}
 }

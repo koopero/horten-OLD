@@ -88,6 +88,21 @@ describe('Listener', function () {
 		H.set ( 2, 'test/path/two' );
 	});
 
+	it('should receive "delete" method when "replace" flag is used', function ( done ) {
+		H.set ( { one: 1 }, 'test' );
+		l = new L ( {
+			path: 'test',
+			primitive: true
+		}, function ( value, path, method, origin ) {
+			if ( method == 'delete' ) {
+				path.string.should.eql ( '/one/' );
+				done();
+			}
+		} );
+
+		H.set( { two: 2 }, 'test', null, H.setFlags.replace );
+	});
+
 	describe('push', function () {
 		it ( 'should work ( object mode )', function ( done ) {
 			H.set ( { one: 1, two: 2 }, 'test' )

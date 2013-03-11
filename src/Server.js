@@ -134,7 +134,6 @@ function HortenServer ( config ) {
 	
 	this.horten = this.listener.horten;
 	this.listener.remove();
-	console.log ( this.listener );
 	
 
 	var port = this.port = parseInt( config.port ) || 8000;
@@ -357,9 +356,9 @@ HortenServer.prototype.processHttpRequest = function ( req, res, auth )
 
 		res.end( that.clientJS ( path ) );
 	}
-	
 
 	path = that.listener.localToGlobalPath ( path );
+
 
 	// Send horten a fake listener object so that there will
 	// be something to log in Horten.
@@ -391,7 +390,7 @@ HortenServer.prototype.processHttpRequest = function ( req, res, auth )
 					return;
 				}
 				
-				if ( that.horten.set ( value,  fakeListener ) ) {
+				if ( that.horten.set ( value, path, fakeListener ) ) {
 					res.writeHead( 205 );
 					res.end ();
 				} else {

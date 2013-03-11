@@ -14,41 +14,6 @@ function HortenOSC ( config ) {
 
 	this.autoClient = parseInt( config.autoClient );
 	this.treatAsArray = config.treatAsArray;
-
-	/*
-	if ( config.client && config.client.host && config.client.port ) { 
-		this.client = new osc.Client ( config.client.host, config.client.port );
-
-		this.ondata = function ( path, value ) {
-			
-			//
-			// OSC path don't have a trailing slash
-			//
-			if ( path.substr ( path.length - 1 ) == '/' )
-				path = path.substr ( 0, path.length - 1 );
-			
-			//console.log ( "osc out " + path + " " + JSON.stringify ( value ) );
-			var typ = typeof value
-				
-			// Okay, this is seriously fucked up, and assumes
-			// that whatever is on the other end of OSC only
-			// really cares about number values.
-			if ( value == null || value == undefined || value == false )
-				value = 0;
-			else if ( value === true ) 
-				value = 1;
-			
-				
-			var msg = new osc.Message ( path, value );
-			console.log ( 'OSC SEND', path ); 
-			//console.log ( "msg "+msg.typetags+" "+value );
-			that.client.send ( msg );
-		}
-		
-	};
-	*/
-	
-
 	
 	if ( config.server && config.server.host && config.server.port ) { 
 		this.name = 'osc://:'+config.server.port;
@@ -58,10 +23,8 @@ function HortenOSC ( config ) {
 			
 			var path = decoded[0];
 
-			console.log ( 'decoded', decoded );
+			//console.log ( 'decoded', decoded );
 			var value = decoded.length == 2 ? decoded[1] : decoded.slice(1);
-
-
 
 			if ( path ) {
 				that.name = 'osc://'+rinfo.address;
@@ -97,8 +60,6 @@ HortenOSC.prototype.addClient = function ( address, port, push ) {
 	if ( clientName in this.clients ) 
 		return;
 
-
-
 	this.clients[clientName] = new osc.Client ( address, port );
 
 	this._pushOnlyToClient
@@ -108,13 +69,13 @@ HortenOSC.sendToClient = function ( client, value, path ) {
 
 }
 
-HortenOSC.prototype.onData = function ( value, path, origin, method ) {
+HortenOSC.prototype.onData = function ( value, path, method, origin ) {
 	if ( !this.clients )
 		return;
 
 	var that = this;
 	var pathStr = path.string;
-	
+
 	for ( var i = 0; i < this.treatAsArray.length; i ++ ) {
 		var wildcard = this.treatAsArray[i];
 		var firstPart = pathStr.substr ( 0, wildcard.length );
