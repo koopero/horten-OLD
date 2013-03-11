@@ -14,26 +14,22 @@
   "bugs": {
     "url": "https://github.com/koop/horten/issues"
   },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "https://github.com/koop/horten/blob/master/LICENSE-MIT"
-    }
-  ],
-
-
-  "main": "./dist/horten-0.3.0.js",
-
+  "main": "./dist/horten.js",
   "keywords": [],
   "dependencies": {
-    "mysql": ">=2.0.0"
-
+    "mysql": "2.0.0-alpha7",
+    "websocket":">=1.0.6",
+    "sockjs":">=0.3.4",
+    "node-osc":">=0.1.2"
   },
   "devDependencies": {
     "grunt": "0.4.x",
     "grunt-contrib-concat": "0.x.x",
     "grunt-contrib-clean": "0.x.x",
-    "grunt-contrib-copy": "0.x.x"
+    "grunt-contrib-copy": "0.x.x",
+    "grunt-contrib-uglify": "0.x.x",    
+    "grunt-simple-mocha": "0.x.x",
+    "should": "1.x.x"
   },
   "bundledDependencies": [],
   "license": "MIT"
