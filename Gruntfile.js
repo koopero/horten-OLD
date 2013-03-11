@@ -28,6 +28,7 @@ module.exports = function(grunt) {
 			'src/MySQL.js',
 			'src/WebSocket.js',
 			'src/Server.js',
+			'src/OSC.js',
 			'src/export.js',
 		],
 		clientSources : [
