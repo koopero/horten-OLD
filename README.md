@@ -83,6 +83,9 @@ This is useful when we start using `Listener`.
 		}
 	)
 	
+# But wait, there's more!
+And you'll hear all about it when I finish these docs.
+	
 ## Connections
 ### MySQL
 Horten can read and write a MySQL or MariaDB database. The basic row is  `( path, value, time )`, storing only **primitive** values. This allows an application to journal every part of its state in millisecond increments. This state can be recalled easily when your application is loaded. For more detail, read the [Docs](docs/MySQL.md). 
