@@ -1,25 +1,26 @@
 var H = require('horten');
 H.instance().debug = true;
 
-
-var state = new H.MySQL ( {
-	// The stuff that gets us a database.
+var connection = 
+{
 	host: 		'localhost',
 	port: 		8889,
 	user: 		'root',
 	password: 	'root',
 	database: 	'horten', 
-	columns: 	 [ 'number', 'origin', 'method', 'time'], 
+}
+
+
+
+var state = new H.MySQL ( {
+	connection: connection,
+	columns: 	 [ 'origin', 'method', 'time'], 
 	table: 		'state',
 	debug: 		true
 });
 
 var history = new H.MySQL ( {
-	host: 		'localhost',
-	port: 		8889,
-	user: 		'root',
-	password: 	'root',
-	database: 	'horten', 
+	connection: connection,
 	columns: 	['time','number'], 
 	table: 		'history',
 	pathTable: 	'path',
