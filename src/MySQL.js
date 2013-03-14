@@ -390,8 +390,6 @@ HortenMySQL.prototype.getPathId = function ( path )
 
 HortenMySQL.prototype.onData = function ( value, path, method, origin )
 {
-	console.log ( 'M oD', path.string, method );
-
 	var time = this.escapeDate( new Date () );
 	
 	var out = [ path, value, time, method, origin ];

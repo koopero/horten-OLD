@@ -57,8 +57,7 @@ if ( connectionConfig ) {
 
 				path: '/test/mysql',
 				keepAlive: false,
-				table: 'table',
-				debug: true
+				table: 'table'
 			} );
 
 			H.set ( {
