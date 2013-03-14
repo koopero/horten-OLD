@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-03-10
+ * horten v0.3.0 - 2013-03-14
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -220,7 +220,7 @@ Horten.setFlags = {
 	
 */
 
-Horten.prototype.set = function ( value, path, origin, flags ) {
+Horten.prototype.set = function ( value, path, flags, origin ) {
 	// Make sure path is proper before doing anything.
 	path = Path ( path );
 
@@ -508,8 +508,8 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 	Same as Horten.prototype.set, except uses the default Horten
 	instance as available from Horten.instance()
 */
-Horten.set = function ( value, path, origin, flags ) {
-	return Horten.instance().set ( value, path, origin, flags );
+Horten.set = function ( value, path, flags, origin ) {
+	return Horten.instance().set ( value, path, flags, origin );
 }
 
 /**
@@ -627,6 +627,13 @@ Horten.prototype.removeListener = function ( listener ) {
 		//	It would be nice to walk back through the meta tree, deleting
 		//	empty meta objects as we go, but I don't feel like it right now.
 	}
+
+	if ( this._pendingListeners ) {
+		this._pendingListeners = this._pendingListeners.filter ( function ( pendingListener ) {
+			return pendingListener != listener;
+		});
+	}
+
 }
 
 /** 
@@ -746,8 +753,7 @@ Horten.merge = function ( object, value, path, flags )
 	
 	return object;
 
-	function merge ( v, d, path) {
-		var touched = false;
+	function merge ( v, d ) {
 		var keys = v, k, i;
 		
 		if ( Array.isArray ( v ) ) {
@@ -784,16 +790,14 @@ Horten.merge = function ( object, value, path, flags )
 			set ( 
 				k, 
 				v[k], 
-				d, 
-				path + k + '/'
+				d
 			 );
 		}
 
 	}
 	
 	
-	function set ( p, value, container, path ) {
-		var touched = false;
+	function set ( p, value, container ) {
 		var currentValue = container[p];
 		
 		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
@@ -823,13 +827,32 @@ Horten.merge = function ( object, value, path, flags )
 				// the primitive value ).
 				container[p] = currentValue = {};
 			}
-			merge ( value, currentValue, path );
+			merge ( value, currentValue );
 		} else {
 			container[p] = value;
 		}
 	}
 	
 
+}
+
+Horten.clone = function ( ob ) {
+	return 'object' == typeof ob ? clone( ob ) : ob;
+
+
+	function clone ( ob ) {
+		var ret = {}, k, v;
+		for ( var k in ob ) {
+			v = ob[k];
+			if ( v !== null && 'object' == typeof v ) {
+				ret[k] = clone( v );
+			} else {
+				ret[k] = v;
+			}
+		}
+		
+		return ret;
+	}
 }
 
 /** 
@@ -990,7 +1013,7 @@ Listener.prototype.set = function ( value, path, flags )
 	path = Path ( path ).translate ( this.prefix, this.path );
 
 	if ( path )
-		return this.horten.set ( value, path, this, flags );
+		return this.horten.set ( value, path, flags, this );
 	
 	return null;
 }
@@ -1016,18 +1039,42 @@ Listener.prototype.onData = function ( path, value, method, origin )
 HortenMySQL.prototype = new Horten.Listener ( false );
 HortenMySQL.prototype.contructor = HortenMySQL;
 
+/**
+	Config
+
+		connection 	Either a mysql connection, or something to pass to mysql.createConnection.
+					Usually in a format like { host: 'local', port: 3306, etc }
+
+		keepAlive 	Set to false to die when the connection closes, rather than
+					reconnecting.
+
+		table 		The main data table.
+
+		pathTable   The table in which to store paths. If this is defined, two tables will
+					be created rather than one. See schema.
+
+		history
+
+		timeOffset	
+
+		timeQuant	
+
+
+
+*/
+
 function HortenMySQL ( config ) {
 
 	if ( config.history ) {
 		if ( config.timeOffset )
-			this.timeOffset = Date.parse ( config.timeOffset );
+			this.timeOffset = -Date.parse ( config.timeOffset );
 		else
 			this.timeOffset = 0;
 
-		if ( config.quantizeTime )
-			this.quantizeTime = parseFloat ( config.quantizeTime );
+		if ( config.timeQuant )
+			this.timeQuant = parseFloat ( config.quantizeTime );
 		else
-			this.quantizeTime = 1;
+			this.timeQuant = 1000;
 
 		this.history = true;
 	} else {
@@ -1035,7 +1082,7 @@ function HortenMySQL ( config ) {
 	}
 
 	// Questionable magic number
-	this.pathLength = 512;
+	this.pathLength = parseInt ( config.pathLength ) || 640;
 
 	// I <3 JS :P	
 	var that = this;
@@ -1153,10 +1200,6 @@ function HortenMySQL ( config ) {
 	//
 	//	Initialize Connection
 	//
-
-
-
-
 	function connect ( connection ) {
 		var connection;
 
@@ -1185,7 +1228,16 @@ function HortenMySQL ( config ) {
 		});	
 
 		that.connection = connection;
-		connection.connect();
+		
+		connection.connect( function ( err ) {
+			if ( !err ) {
+				that.connected = true;
+				that.flush();
+			} else {
+				console.log ( "BAD CONNECTION!");
+				// Handle bad connection here!
+			}
+		});
 	}
 
 	connect ( config.connection );
@@ -1246,15 +1298,9 @@ HortenMySQL.prototype.escapeDate = function ( date )
 	date = new Date ( date );
 	var timeStamp = date.getTime ();
 
-	if ( this.timeOffset != undefined )
-		timeStamp -= this.timeOffset;
-
-	if ( this.quantizeTime != undefined ) {
-		timeStamp /= this.quantizeTime;
-	} else {
-		timeStamp /= 1000;
-	}
-
+	timeStamp -= this.timeOffset;
+	timeStamp /= this.timeQuant;
+	
 	return parseInt ( timeStamp )
 }
 
@@ -1382,6 +1428,8 @@ HortenMySQL.prototype.getPathId = function ( path )
 
 HortenMySQL.prototype.onData = function ( value, path, method, origin )
 {
+	console.log ( 'M oD', path.string, method );
+
 	var time = this.escapeDate( new Date () );
 	
 	var out = [ path, value, time, method, origin ];
@@ -1390,63 +1438,126 @@ HortenMySQL.prototype.onData = function ( value, path, method, origin )
 	this.flush ();
 }
 
-HortenMySQL.prototype.flush = function ()
+HortenMySQL.prototype.flush = function ( callback )
 {
+	var that = this;
+
+	if ( this._queue.length == 0 ) {
+		if ( this._flushCallbacks && this._flushCallbacks.length ) {
+			this._flushCallbacks.forEach ( function ( cb ) {
+				cb();
+			});
+			this._flushCallbacks = [];
+		}
+
+		if ( 'function' == typeof callback ) {
+	 		process.nextTick ( function() {
+				callback ();
+			} );
+	 	}
+
+	 	return;
+	} else if ( 'function' == typeof callback ) {
+		if ( !this._flushCallbacks )
+			this._flushCallbacks = [];
+
+		this._flushCallbacks.push ( callback );
+	}
+
+	if ( !that.connected ) {
+		return;
+	}
+
+	var c = this.columns;
+	var e = function ( v ) { 
+		that.connection.escape ( v );
+	};
+
+	var sentQueries = 0;
+
 	for ( var i = 0; i < this._queue.length; i ++ ) {
 
 		var out = this._queue[i];
-		var pathId = this.getPathId ( out[0] );
+		var path 	= out[0];
+
+		var pathId = this.getPathId ( path );
 	
 		if ( pathId ) {
 			this._queue.splice ( i, 1 );
 			i --;
-			
+
 			var value 	= out[1];
 			var time 	= out[2];
-			var set		= [];
-			var type 	= typeof value;
 			var method 	= out[3];
-			var origin  = out[4];
+			var origin  = out[4];	
+
 			var sql;
 
-			var pathEq = '`' + ( this.columns.pathId ? this.columns.pathId : this.columns.path )+'`'+
-					"=" +this.connection.escape( pathId );
-
 			if ( method == 'delete' && !this.history ) {
-				sql  = 'DELETE FROM';
-				sql += ' `'+this.dataTable+'` WHERE ';
-				sql += pathEq; 
+				var pathLike = '`'+c.path+'` LIKE '+that.connection.escape (path+'%');
+
+				sql 	 = 'DELETE FROM ';
+				sql 	+= ' `'+this.dataTable+'` WHERE ';
+
+				if ( this.pathTable ) {
+					sql += ' `'+c.pathId+'` IN ';
+					sql += ' ( SELECT `'+c.pathId+'` FROM `'+this.pathTable+'` WHERE ';
+					sql += pathLike;
+					sql += ' )'
+				} else {
+					sql += pathLike;
+				}
+
 			} else {
+				var set		= {};
+				var type 	= typeof value;
+
 				sql = this.history ? 'INSERT' : 'REPLACE';
 				sql += ' `'+this.dataTable+'` SET '; 
 
-				set.push ( pathEq );
+				set[ c.pathId || c.path ] = pathId;
 				
-				if ( this.columns.time  )
-					set.push ( '`'+this.columns.time+"`="+time );
+				if ( c.time  )
+					set[c.time] = time;
 				
-				if ( origin && this.columns.origin ) 
-					set.push ( '`'+this.columns.origin+"`="+this.connection.escape ( origin ) );
-
-				if ( method && this.columns.method ) 
-					set.push ( '`'+this.columns.method+"`="+this.connection.escape ( method ) );
+				if ( origin && c.origin ) 
+					set[c.origin] = origin;
+				
+				if ( method && c.method ) 
+					set[c.method] = method;
 
 
 				if ( type == 'number' && this.columns.number ) {
-					set.push ( '`'+this.columns.number+"`="+this.connection.escape ( value ) );
+					set[c.number] = value;
 				} else if ( this.columns.json ) {
-					set.push ( '`'+this.columns.json+'`='+this.connection.escape ( JSON.stringify ( value ) ) );
+					set[c.json] = JSON.stringify ( value );
 				} else {
 					// We've got no columns that hold data, so nothing to write.
 					continue;
 				}
-				
-				sql 	+= set.join(',');
+				sql 	+= that.connection.escape( set );
 			}
 			
-			this.query ( sql );
+			this.query ( sql, countCallbacks );
+			sentQueries ++;
+		} else {
+			// If we're stuck retrieving pathIds, don't continue.
+			// Hopefully, this will prevent things being out of
+			// order, especially deletes.
+			break;
 		}
 	}
+	
+	function countCallbacks ( err ) {
+		if ( !err ) {
+			sentQueries --;
+			if ( sentQueries == 0 ) {
+				that.flush();
+			}
+		}
+	}
+
+
 }
 
 Horten.MySQL = HortenMySQL;

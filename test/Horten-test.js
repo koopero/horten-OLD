@@ -56,23 +56,23 @@ describe ( 'Horten', function () {
 		it('makes proper use of the "keepTopology" flag', function () {
 			var h = new H ();
 			h.set ( { four: 4, foo: { five: 5, six: 6 } } );
-			h.set ( 7, 'seven', null, H.setFlags.keepTopology ).should.eql ( false );
+			h.set ( 7, 'seven', H.setFlags.keepTopology ).should.eql ( false );
 			h.get().should.eql( { four: 4, foo: { five: 5, six: 6 } } );
-			h.set ( 7, 'foo/seven', null, H.setFlags.keepTopology ).should.eql ( false );
-			h.set ( 'hex', 'foo/six', null, H.setFlags.keepTopology ).should.eql ( true );
+			h.set ( 7, 'foo/seven', H.setFlags.keepTopology ).should.eql ( false );
+			h.set ( 'hex', 'foo/six', H.setFlags.keepTopology ).should.eql ( true );
 			h.get().should.eql( { four: 4, foo: { five: 5, six: 'hex' } } )
 		} );
 
 		it('makes proper use of the "replace" flag', function () {
 			var h = new H ();
 			h.set ( { 'really': 'old' } );
-			h.set ( { 'brand': 'new' }, null, null, H.setFlags.replace );
+			h.set ( { 'brand': 'new' }, null, H.setFlags.replace );
 			h.get().should.eql( { 'brand': 'new' } );
 
-			h.set ( { 'spanking': 'new' }, 'brand', null, H.setFlags.replace );
+			h.set ( { 'spanking': 'new' }, 'brand', H.setFlags.replace );
 			h.get().should.eql( { 'brand': { spanking: 'new' } } );
 
-			h.set ( { 'even': 'newer' }, 'brand', null, H.setFlags.replace );
+			h.set ( { 'even': 'newer' }, 'brand', H.setFlags.replace );
 			h.set ( 4, 'four', null, H.setFlags.replace );
 			
 			h.get().should.eql( { 'brand': { even: 'newer' }, four: 4} );

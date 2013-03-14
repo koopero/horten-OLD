@@ -90,7 +90,7 @@ Listener.prototype.set = function ( value, path, flags )
 	path = Path ( path ).translate ( this.prefix, this.path );
 
 	if ( path )
-		return this.horten.set ( value, path, this, flags );
+		return this.horten.set ( value, path, flags, this );
 	
 	return null;
 }

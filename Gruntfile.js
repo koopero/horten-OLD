@@ -43,7 +43,9 @@ module.exports = function(grunt) {
 		tests : [
 			'test/Path-test.js',
 			'test/Horten-test.js',
-			'test/Listener-test.js'
+			'test/Listener-test.js',
+			'test/MySQL-test.js',
+				
 		],
 
 		pkg : pkg,
