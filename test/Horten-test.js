@@ -1,6 +1,5 @@
 var H = require('../dist/horten.js' );
-require('should');
-var assert = require('assert');
+var should = require('should');
 
 describe ( 'Horten', function () {
 
@@ -15,6 +14,22 @@ describe ( 'Horten', function () {
 			var another = new H();
 			another.should.not.equal( instance ); 
 
+		});
+	});
+
+	describe ( '#walkObject()', function () {
+		var testOb = {
+			'path': {
+				'one': 1,
+				'two': 2
+			},
+			'three': 3
+		}
+		it ('should walk an object', function () {
+			H.walkObject ( testOb ).should.eql ( testOb );
+			H.walkObject ( testOb, 'path/one' ).should.eql ( 1 );
+			should.strictEqual ( H.walkObject ( testOb, 'four' ), undefined );
+			H.walkObject ( testOb, 'path', true ).should.equal ( testOb['path'] );
 		});
 	});
 

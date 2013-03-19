@@ -71,23 +71,8 @@ Horten.prototype.get = function ( path, original ) {
 	}
 	
 	// Do a deep clone of the result. 
-	if ( !original && d != null && 'object' == typeof d ) {
-		
-		function clone ( ob ) {
-			var ret = {}, k, v;
-			for ( var k in ob ) {
-				v = ob[k];
-				if ( v !== null && 'object' == typeof v ) {
-					ret[k] = clone( v );
-				} else {
-					ret[k] = v;
-				}
-			}
-			
-			return ret;
-		}
-		
-		return clone ( d );
+	if ( !original ) {
+		d = Horten.clone ( d );
 	} 
 	
 	return d;
@@ -753,13 +738,35 @@ Horten.merge = function ( object, value, path, flags )
 			container[p] = value;
 		}
 	}
-	
-
 }
+
+Horten.walkObject = function ( d, path, original ) {
+	path = Path ( path );
+	
+	var p = path.array;
+	var l = p.length;
+	
+	if ( d == null ) {
+		return undefined;
+	}
+
+
+	// Walk our data object to get the path we're after.
+	for ( var i = 0; i < l && d != null; i ++ ) {
+		d = d[p[i]];
+	}
+	
+	// Do a deep clone of the result. 
+	if ( !original ) {
+		d = Horten.clone( d );
+	} 
+	
+	return d;
+}
+
 
 Horten.clone = function ( ob ) {
 	return 'object' == typeof ob ? clone( ob ) : ob;
-
 
 	function clone ( ob ) {
 		var ret = {}, k, v;
