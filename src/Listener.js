@@ -107,7 +107,6 @@ Listener.prototype.globalToLocalPath = function ( path )
 
 Listener.prototype.onData = function ( path, value, method, origin )
 {
-	console.log ( 'l', path, value );
 	if ( 'function' == typeof this.callback ) {
 		this.callback( path, value, method, origin );
 	}

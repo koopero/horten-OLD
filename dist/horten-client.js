@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-03-10
+ * horten v0.3.0 - 2013-04-21
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -75,6 +75,16 @@ Path.prototype.translate = function ( root, prefix ) {
 		return this;
 		
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
+}
+
+Path.prototype.startsWith = function ( root ) {
+	root = Path ( root );
+	var rootStrLen = root.string.length;
+	
+	if ( this.string.substr( 0, rootStrLen ) != root.string )
+		return false;
+
+	return Path ( this.string.substr( rootStrLen ) );
 }
 
 Path.prototype.toString = function () {
@@ -1007,7 +1017,6 @@ Listener.prototype.globalToLocalPath = function ( path )
 
 Listener.prototype.onData = function ( path, value, method, origin )
 {
-	console.log ( 'l', path, value );
 	if ( 'function' == typeof this.callback ) {
 		this.callback( path, value, method, origin );
 	}
@@ -1022,14 +1031,14 @@ if ( 'function' == typeof require && 'object' == typeof exports ) {
 	exports.jsFile = __filename;
 } 
 
-
+Horten.WebSocket = HortenWebSocket;
 function HortenWebSocket ( config )
 {
-	this.primitive = true;
+	this.primitive = config.primitive = true;
 	// Magic object
 	this.FILL_DATA = {};
 
-	this.keepAlive = config && !!config;
+	this.keepAlive = config && !!config.keepAlive;
 
 	if ( config != null ) {
 		Listener.call ( this, config, this.onData );
@@ -1099,7 +1108,7 @@ HortenWebSocket.prototype._pull = function ()
 
 HortenWebSocket.prototype.push = function ( path )
 {
-	path = Horten.pathString ( path );
+	path = Path ( path );
 	
 
 	if ( !this._pushData )

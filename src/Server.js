@@ -302,7 +302,7 @@ function HortenServer ( config ) {
 		}
 
 		var js = 	"function __hortenConnect () { "+
-					"HortenRemote=HortenWebSocket.connect(" +JSON.stringify( opts )+");HortenRemote.pull();" +
+					"HortenRemote=Horten.WebSocket.connect(" +JSON.stringify( opts )+");HortenRemote.pull();" +
 					"}" +
 					"if(window.attachEvent){window.attachEvent('onload', __hortenConnect );"+
 					"} else { if(window.onload) { var curronload = window.onload; var newonload = function() {"+

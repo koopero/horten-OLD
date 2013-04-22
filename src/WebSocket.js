@@ -7,14 +7,14 @@ if ( 'function' == typeof require && 'object' == typeof exports ) {
 	exports.jsFile = __filename;
 } 
 
-
+Horten.WebSocket = HortenWebSocket;
 function HortenWebSocket ( config )
 {
-	this.primitive = true;
+	this.primitive = config.primitive = true;
 	// Magic object
 	this.FILL_DATA = {};
 
-	this.keepAlive = config && !!config;
+	this.keepAlive = config && !!config.keepAlive;
 
 	if ( config != null ) {
 		Listener.call ( this, config, this.onData );
@@ -84,7 +84,7 @@ HortenWebSocket.prototype._pull = function ()
 
 HortenWebSocket.prototype.push = function ( path )
 {
-	path = Horten.pathString ( path );
+	path = Path ( path );
 	
 
 	if ( !this._pushData )

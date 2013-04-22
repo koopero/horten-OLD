@@ -27,6 +27,13 @@ describe('Path', function() {
 		H.Path( null ).array.should.eql([]);
 	});
 
+	it('should deal with stupid or irregular input', function () {
+		H.Path( '//////qux/////quark/'  ).string.should.equal ( '/qux/quark/' );
+
+		H.Path( ['/foo/', null, 2 ]  ).string.should.equal ( '/foo/2/' );
+		H.Path( false ).string.should.equal ( '/false/' );
+	})
+
 	describe('#translate', function () {
 		it('should properly translate paths', function () {
 			var P = H.Path( 'hello/world' )
@@ -34,6 +41,17 @@ describe('Path', function() {
 			P.translate( 'hello' ).string.should.eql('/world/')
 			P.translate( null, 'goodbye' ).string.should.eql('/goodbye/hello/world/')
 			assert.equal( P.translate( 'goodbye' ), undefined )
+		})
+	})
+
+	describe('#startsWith', function () {
+		it('should return the remainder of the path or false', function () {
+			var P = H.Path( 'one/two/three' );
+			P.startsWith ( 'blue' ).should.equal ( false );
+			P.startsWith ( 'one').string.should.equal ( '/two/three/' );
+			P.startsWith ( 'one/two').string.should.equal ( '/three/' );	
+			P.startsWith ( 'one/two/three').string.should.equal ( '/' );	
+
 		})
 	})
 
