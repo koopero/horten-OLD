@@ -162,10 +162,6 @@ function HortenMySQL ( config ) {
 	//
 	//	Initialize Connection
 	//
-
-
-
-
 	function connect ( connection ) {
 		var connection;
 
@@ -194,7 +190,16 @@ function HortenMySQL ( config ) {
 		});	
 
 		that.connection = connection;
-		connection.connect();
+		
+		connection.connect( function ( err ) {
+			if ( !err ) {
+				that.connected = true;
+				that.flush();
+			} else {
+				console.log ( "BAD CONNECTION!");
+				// Handle bad connection here!
+			}
+		});
 	}
 
 	connect ( config.connection );
@@ -393,10 +398,42 @@ HortenMySQL.prototype.onData = function ( value, path, method, origin )
 	this.flush ();
 }
 
-HortenMySQL.prototype.flush = function ()
+HortenMySQL.prototype.flush = function ( callback )
 {
+	var that = this;
+
+	if ( this._queue.length == 0 ) {
+		if ( this._flushCallbacks && this._flushCallbacks.length ) {
+			this._flushCallbacks.forEach ( function ( cb ) {
+				cb();
+			});
+			this._flushCallbacks = [];
+		}
+
+		if ( 'function' == typeof callback ) {
+	 		process.nextTick ( function() {
+				callback ();
+			} );
+	 	}
+
+	 	return;
+	} else if ( 'function' == typeof callback ) {
+		if ( !this._flushCallbacks )
+			this._flushCallbacks = [];
+
+		this._flushCallbacks.push ( callback );
+	}
+
+	if ( !that.connected ) {
+		return;
+	}
+
 	var c = this.columns;
-	var e = this.connection.escape;
+	var e = function ( v ) { 
+		that.connection.escape ( v );
+	};
+
+	var sentQueries = 0;
 
 	for ( var i = 0; i < this._queue.length; i ++ ) {
 
@@ -417,7 +454,7 @@ HortenMySQL.prototype.flush = function ()
 			var sql;
 
 			if ( method == 'delete' && !this.history ) {
-				var pathLike = '`'+c.path+'` LIKE '+e(path+'%');
+				var pathLike = '`'+c.path+'` LIKE '+that.connection.escape (path+'%');
 
 				sql 	 = 'DELETE FROM ';
 				sql 	+= ' `'+this.dataTable+'` WHERE ';
@@ -430,16 +467,15 @@ HortenMySQL.prototype.flush = function ()
 				} else {
 					sql += pathLike;
 				}
-				sql += pathEq; 
+
 			} else {
-				var set		= [];
+				var set		= {};
 				var type 	= typeof value;
 
 				sql = this.history ? 'INSERT' : 'REPLACE';
 				sql += ' `'+this.dataTable+'` SET '; 
 
-				set.push ( '`' + ( c.pathId ? c.pathId : c.path )+'`'+
-					"=" +e( pathId ) );
+				set[ c.pathId || c.path ] = pathId;
 				
 				if ( c.time  )
 					set[c.time] = time;
@@ -459,11 +495,11 @@ HortenMySQL.prototype.flush = function ()
 					// We've got no columns that hold data, so nothing to write.
 					continue;
 				}
-				
-				sql 	+= e( set );
+				sql 	+= that.connection.escape( set );
 			}
 			
-			this.query ( sql );
+			this.query ( sql, countCallbacks );
+			sentQueries ++;
 		} else {
 			// If we're stuck retrieving pathIds, don't continue.
 			// Hopefully, this will prevent things being out of
@@ -471,6 +507,17 @@ HortenMySQL.prototype.flush = function ()
 			break;
 		}
 	}
+	
+	function countCallbacks ( err ) {
+		if ( !err ) {
+			sentQueries --;
+			if ( sentQueries == 0 ) {
+				that.flush();
+			}
+		}
+	}
+
+
 }
 
 Horten.MySQL = HortenMySQL;

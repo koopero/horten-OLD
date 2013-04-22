@@ -1,4 +1,5 @@
 # Horten
+## This is a work in progress. Try it out if you like, but you're better to wait till a release.
 
 ## Overview
 Horten is an **experimental** framework for sharing and persisting schema- free, high-frequency data between multple clients and servers in real time. 

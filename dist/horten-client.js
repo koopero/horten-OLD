@@ -160,23 +160,8 @@ Horten.prototype.get = function ( path, original ) {
 	}
 	
 	// Do a deep clone of the result. 
-	if ( !original && d != null && 'object' == typeof d ) {
-		
-		function clone ( ob ) {
-			var ret = {}, k, v;
-			for ( var k in ob ) {
-				v = ob[k];
-				if ( v !== null && 'object' == typeof v ) {
-					ret[k] = clone( v );
-				} else {
-					ret[k] = v;
-				}
-			}
-			
-			return ret;
-		}
-		
-		return clone ( d );
+	if ( !original ) {
+		d = Horten.clone ( d );
 	} 
 	
 	return d;
@@ -230,7 +215,7 @@ Horten.setFlags = {
 	
 */
 
-Horten.prototype.set = function ( value, path, origin, flags ) {
+Horten.prototype.set = function ( value, path, flags, origin ) {
 	// Make sure path is proper before doing anything.
 	path = Path ( path );
 
@@ -518,8 +503,8 @@ Horten.prototype.set = function ( value, path, origin, flags ) {
 	Same as Horten.prototype.set, except uses the default Horten
 	instance as available from Horten.instance()
 */
-Horten.set = function ( value, path, origin, flags ) {
-	return Horten.instance().set ( value, path, origin, flags );
+Horten.set = function ( value, path, flags, origin ) {
+	return Horten.instance().set ( value, path, flags, origin );
 }
 
 /**
@@ -637,6 +622,13 @@ Horten.prototype.removeListener = function ( listener ) {
 		//	It would be nice to walk back through the meta tree, deleting
 		//	empty meta objects as we go, but I don't feel like it right now.
 	}
+
+	if ( this._pendingListeners ) {
+		this._pendingListeners = this._pendingListeners.filter ( function ( pendingListener ) {
+			return pendingListener != listener;
+		});
+	}
+
 }
 
 /** 
@@ -756,8 +748,7 @@ Horten.merge = function ( object, value, path, flags )
 	
 	return object;
 
-	function merge ( v, d, path) {
-		var touched = false;
+	function merge ( v, d ) {
 		var keys = v, k, i;
 		
 		if ( Array.isArray ( v ) ) {
@@ -794,16 +785,14 @@ Horten.merge = function ( object, value, path, flags )
 			set ( 
 				k, 
 				v[k], 
-				d, 
-				path + k + '/'
+				d
 			 );
 		}
 
 	}
 	
 	
-	function set ( p, value, container, path ) {
-		var touched = false;
+	function set ( p, value, container ) {
 		var currentValue = container[p];
 		
 		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
@@ -833,13 +822,54 @@ Horten.merge = function ( object, value, path, flags )
 				// the primitive value ).
 				container[p] = currentValue = {};
 			}
-			merge ( value, currentValue, path );
+			merge ( value, currentValue );
 		} else {
 			container[p] = value;
 		}
 	}
-	
+}
 
+Horten.walkObject = function ( d, path, original ) {
+	path = Path ( path );
+	
+	var p = path.array;
+	var l = p.length;
+	
+	if ( d == null ) {
+		return undefined;
+	}
+
+
+	// Walk our data object to get the path we're after.
+	for ( var i = 0; i < l && d != null; i ++ ) {
+		d = d[p[i]];
+	}
+	
+	// Do a deep clone of the result. 
+	if ( !original ) {
+		d = Horten.clone( d );
+	} 
+	
+	return d;
+}
+
+
+Horten.clone = function ( ob ) {
+	return 'object' == typeof ob ? clone( ob ) : ob;
+
+	function clone ( ob ) {
+		var ret = {}, k, v;
+		for ( var k in ob ) {
+			v = ob[k];
+			if ( v !== null && 'object' == typeof v ) {
+				ret[k] = clone( v );
+			} else {
+				ret[k] = v;
+			}
+		}
+		
+		return ret;
+	}
 }
 
 /** 
@@ -1000,7 +1030,7 @@ Listener.prototype.set = function ( value, path, flags )
 	path = Path ( path ).translate ( this.prefix, this.path );
 
 	if ( path )
-		return this.horten.set ( value, path, this, flags );
+		return this.horten.set ( value, path, flags, this );
 	
 	return null;
 }

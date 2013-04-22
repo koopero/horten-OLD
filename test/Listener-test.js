@@ -37,7 +37,7 @@ function multiplePrimitiveCallback( expect, done ) {
 describe('Listener', function () {
 
 	beforeEach ( function () {
-		H.instance().set({}, null, null, H.setFlags.replace );
+		H.instance().set({}, null, H.setFlags.replace );
 	});
 
 	afterEach ( function () {
@@ -100,7 +100,7 @@ describe('Listener', function () {
 			}
 		} );
 
-		H.set( { two: 2 }, 'test', null, H.setFlags.replace );
+		H.set( { two: 2 }, 'test', H.setFlags.replace );
 	});
 
 	describe('push', function () {
