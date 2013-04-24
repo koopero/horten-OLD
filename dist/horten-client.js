@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-04-21
+ * horten v0.3.0 - 2013-04-23
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -1064,13 +1064,13 @@ if ( 'function' == typeof require && 'object' == typeof exports ) {
 Horten.WebSocket = HortenWebSocket;
 function HortenWebSocket ( config )
 {
-	this.primitive = config.primitive = true;
-	// Magic object
-	this.FILL_DATA = {};
-
-	this.keepAlive = config && !!config.keepAlive;
-
 	if ( config != null ) {
+		this.primitive = config.primitive = true;
+		// Magic object
+		this.FILL_DATA = {};
+
+		this.keepAlive = config && !!config.keepAlive;
+
 		Listener.call ( this, config, this.onData );
 		this.catchAll = true;
 		this.attach ();

@@ -10,13 +10,13 @@ if ( 'function' == typeof require && 'object' == typeof exports ) {
 Horten.WebSocket = HortenWebSocket;
 function HortenWebSocket ( config )
 {
-	this.primitive = config.primitive = true;
-	// Magic object
-	this.FILL_DATA = {};
-
-	this.keepAlive = config && !!config.keepAlive;
-
 	if ( config != null ) {
+		this.primitive = config.primitive = true;
+		// Magic object
+		this.FILL_DATA = {};
+
+		this.keepAlive = config && !!config.keepAlive;
+
 		Listener.call ( this, config, this.onData );
 		this.catchAll = true;
 		this.attach ();
