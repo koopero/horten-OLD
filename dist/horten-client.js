@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-04-23
+ * horten v0.3.0 - 2013-04-25
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero

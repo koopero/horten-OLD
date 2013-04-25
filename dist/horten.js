@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-04-23
+ * horten v0.3.0 - 2013-04-25
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -2486,31 +2486,33 @@ HortenOSC.prototype.onData = function ( value, path, method, origin ) {
 	var that = this;
 	var pathStr = path.string;
 
-	for ( var i = 0; i < this.treatAsArray.length; i ++ ) {
-		var wildcard = this.treatAsArray[i];
-		var firstPart = pathStr.substr ( 0, wildcard.length );
+	if ( this.treatAsArray ) {
+		for ( var i = 0; i < this.treatAsArray.length; i ++ ) {
+			var wildcard = this.treatAsArray[i];
+			var firstPart = pathStr.substr ( 0, wildcard.length );
 
-		if ( firstPart == wildcard ) {
-			var index = parseInt ( pathStr.substr ( wildcard.length ) );
-			firstPart = HortenOSC.OSCPathString ( firstPart );
-			if ( !this._arrayValues )
-				this._arrayValues = {};
+			if ( firstPart == wildcard ) {
+				var index = parseInt ( pathStr.substr ( wildcard.length ) );
+				firstPart = HortenOSC.OSCPathString ( firstPart );
+				if ( !this._arrayValues )
+					this._arrayValues = {};
 
-			if ( !this._arrayValues[firstPart] )
-				this._arrayValues[firstPart] = [];
+				if ( !this._arrayValues[firstPart] )
+					this._arrayValues[firstPart] = [];
 
-			this._arrayValues[firstPart][index] = HortenOSC.OSCPrimitiveValue( value );
+				this._arrayValues[firstPart][index] = HortenOSC.OSCPrimitiveValue( value );
 
-			if ( !this._arraySend )
-				this._arraySend = {};
+				if ( !this._arraySend )
+					this._arraySend = {};
 
-			this._arraySend[firstPart] = true;
+				this._arraySend[firstPart] = true;
 
-			process.nextTick ( function () {
-				that.sendArrays ();
-			});
+				process.nextTick ( function () {
+					that.sendArrays ();
+				});
 
-			return;
+				return;
+			}
 		}
 	}
 
