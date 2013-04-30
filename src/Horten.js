@@ -2,7 +2,7 @@
 	Get an appropriate 'nextTick' function.
 */
 var nextTick;
-if ( process && process['nextTick'] ) {
+if ( 'object' == typeof process && process['nextTick'] ) {
 	nextTick = process.nextTick;
 } else {
 	nextTick = function ( callback ) {
@@ -508,15 +508,13 @@ Horten.prototype.removeListener = function ( listener ) {
 	if ( listener.horten && listener.horten != this ) {
 		throw 'Trying to remove listener attached to different Horten instance';
 	}
-	
+
 	if ( listener._attachedToPath ) {
+
+		console.log ( "Removing listener from ", listener._attachedToPath );
+
 		var path = Path ( listener._attachedToPath );
 		var m = this.getMeta ( path, false );
-		
-		if ( m ) {
-			deleteFromArray ( 'lp' );
-			deleteFromArray ( 'lo' );
-		}
 		
 		function deleteFromArray ( arrayName ) {
 			if ( m[arrayName] ) {
@@ -528,6 +526,13 @@ Horten.prototype.removeListener = function ( listener ) {
 					delete m[arrayName];
 			}
 		}
+
+		if ( m ) {
+			deleteFromArray ( 'lp' );
+			deleteFromArray ( 'lo' );
+		}
+		
+
 		
 		delete listener._attachedToPath;
 		//	It would be nice to walk back through the meta tree, deleting

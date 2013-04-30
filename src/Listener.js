@@ -26,8 +26,9 @@ function Listener ( options, onData )
 		this.prefix = new Path ( options.prefix );
 
 		this.primitive = !!options.primitive;
-		this.horten = Horten.instance ();	
-		this.onData = onData;
+		this.horten = options.horten || Horten.instance ();
+		if ( 'function' == typeof onData )
+			this.onData = onData;
 
 		if ( options.attach !== false )
 			this.attach ();
@@ -44,8 +45,10 @@ Listener.prototype.attach = function ( horten )
 		this.horten = horten;
 	} 
 
-	if ( this.horten )
-		this.horten.attachListener ( this );
+	if ( !this.horten )
+		this.horten = Horten.instance();
+
+	this.horten.attachListener ( this );
 }
 
 Listener.prototype.remove = function ()
@@ -75,6 +78,9 @@ Listener.prototype.get = function ( path )
 		
 	path = Path ( path ).translate ( this.prefix, this.path );
 
+	if ( !this.horten )
+		this.horten = Horten.instance();
+
 	if ( path ) {
 		return this.horten.get ( path );
 	}
@@ -89,7 +95,10 @@ Listener.prototype.set = function ( value, path, flags )
 	
 	path = Path ( path ).translate ( this.prefix, this.path );
 
-	if ( path )
+	if ( !this.horten )
+		this.horten = Horten.instance();
+
+	if ( path ) 
 		return this.horten.set ( value, path, flags, this );
 	
 	return null;

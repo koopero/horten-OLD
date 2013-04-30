@@ -23,7 +23,7 @@ HortenWebSocketServer = function ( request, subPath, config, auth )
 	this.wsn = connection;
 	
 	if ( subPath )
-		this.path = Horten.pathString ( this.path + subPath );
+		this.path = Path ( Path ( this.path ) + Path ( subPath ) );
 
 	this.name = 'ws://'+connection.remoteAddress;
 		
@@ -273,7 +273,7 @@ function HortenServer ( config ) {
 
 
 
-	jsFiles.push( 'horten-client.min.js' );
+	jsFiles.push( 'horten-client.js' );
 
 	//console.log( Path.join( __dirname, 'ext/sockjs-0.3.min.js') );
 
@@ -292,6 +292,9 @@ function HortenServer ( config ) {
 		var opts = {
 			path:path
 		};
+
+		opts.keepAlive = true;
+
 		for ( var k in connectOpts ) {
 			var url = Url.parse ( connectOpts[k] );
 
@@ -302,7 +305,8 @@ function HortenServer ( config ) {
 		}
 
 		var js = 	"function __hortenConnect () { "+
-					"HortenRemote=Horten.WebSocket.connect(" +JSON.stringify( opts )+");HortenRemote.pull();" +
+					"HortenRemote=H.WebSocket.connect(" +JSON.stringify( opts )+");"+
+					"if ( HortenRemote ) { HortenRemote.attach();HortenRemote.pull(); };" +
 					"}" +
 					"if(window.attachEvent){window.attachEvent('onload', __hortenConnect );"+
 					"} else { if(window.onload) { var curronload = window.onload; var newonload = function() {"+
@@ -355,6 +359,7 @@ HortenServer.prototype.processHttpRequest = function ( req, res, auth )
 		res.write ( that.clientJSIncludes );
 
 		res.end( that.clientJS ( path ) );
+		return;
 	}
 
 	path = that.listener.localToGlobalPath ( path );
