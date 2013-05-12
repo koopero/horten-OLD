@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-04-30
+ * horten v0.3.0 - 2013-05-09
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -2080,7 +2080,7 @@ HortenSockJSServer = function ( conn, subPath, config, auth )
 	HortenWebSocket.call ( this, config );
 
 	if ( subPath )
-		this.path = Horten.pathString ( this.path + subPath );
+		this.path = Path ( this.path + subPath );
 
 	this.name = 'sjs://'+conn.remoteAddress;
 
