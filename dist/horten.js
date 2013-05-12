@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-05-09
+ * horten v0.3.0 - 2013-05-12
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -599,8 +599,6 @@ Horten.prototype.removeListener = function ( listener ) {
 	}
 
 	if ( listener._attachedToPath ) {
-
-		console.log ( "Removing listener from ", listener._attachedToPath );
 
 		var path = Path ( listener._attachedToPath );
 		var m = this.getMeta ( path, false );
@@ -1264,7 +1262,7 @@ function HortenMySQL ( config ) {
 				that.connected = true;
 				that.flush();
 			} else {
-				console.log ( "BAD CONNECTION!");
+				console.log ( "BAD CONNECTION!", err );
 				// Handle bad connection here!
 			}
 		});
@@ -1617,7 +1615,7 @@ function HortenWebSocket ( config )
 HortenWebSocket.prototype = new Listener ( null );
 
 HortenWebSocket.connect = function ( connectOpts ) {
-	console.log ( "Trying connect with", connectOpts, WebSocket );
+	//console.log ( "Trying connect with", connectOpts, WebSocket );
 	var ret;
 
 	if ( 'function' == typeof WebSocket && connectOpts.WebSocket ) {
@@ -1720,7 +1718,7 @@ HortenWebSocket.prototype.onremoteclose = function ()
 
 HortenWebSocket.prototype.onData = function ( value, path )
 {
-	console.log ( 'HWS ONDATA', value, path);
+	//console.log ( 'HWS ONDATA', value, path);
 
 	if ( !this._pushData )
 		this._pushData = {};
@@ -1753,7 +1751,7 @@ HortenWebSocket.prototype.onRemoteData = function ( msg ) {
 			this.set ( value, remotePath );
 		}
 		
-		console.log ( "GOT MESG set", set );
+		//console.log ( "GOT MESG set", set );
 
 	}
 	
@@ -1784,7 +1782,7 @@ HortenWebSocket.prototype._push = function ()
 		return;
 	}
 	
-	console.log ( "HWS PUSH", this._pushData );
+	//console.log ( "HWS PUSH", this._pushData );
 
 	var somethingToSend = false;
 	
@@ -1831,7 +1829,7 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	
 	websocket.onclose = function ()
 	{
-		console.log ( that.name, "onclose" );
+		//console.log ( that.name, "onclose" );
 		that.onremoteclose ();
 	};	
 
@@ -2481,7 +2479,6 @@ function HortenOSC ( config ) {
 		this.remove()
 			
 		if ( this.server ) {
-			console.log ( "OSC CLOSE" );
 			this.server.close ();
 			this.server = null;
 		}

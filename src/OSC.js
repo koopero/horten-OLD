@@ -43,7 +43,6 @@ function HortenOSC ( config ) {
 		this.remove()
 			
 		if ( this.server ) {
-			console.log ( "OSC CLOSE" );
 			this.server.close ();
 			this.server = null;
 		}

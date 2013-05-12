@@ -196,7 +196,7 @@ function HortenMySQL ( config ) {
 				that.connected = true;
 				that.flush();
 			} else {
-				console.log ( "BAD CONNECTION!");
+				console.log ( "BAD CONNECTION!", err );
 				// Handle bad connection here!
 			}
 		});

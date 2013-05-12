@@ -26,7 +26,7 @@ function HortenWebSocket ( config )
 HortenWebSocket.prototype = new Listener ( null );
 
 HortenWebSocket.connect = function ( connectOpts ) {
-	console.log ( "Trying connect with", connectOpts, WebSocket );
+	//console.log ( "Trying connect with", connectOpts, WebSocket );
 	var ret;
 
 	if ( 'function' == typeof WebSocket && connectOpts.WebSocket ) {
@@ -129,7 +129,7 @@ HortenWebSocket.prototype.onremoteclose = function ()
 
 HortenWebSocket.prototype.onData = function ( value, path )
 {
-	console.log ( 'HWS ONDATA', value, path);
+	//console.log ( 'HWS ONDATA', value, path);
 
 	if ( !this._pushData )
 		this._pushData = {};
@@ -162,7 +162,7 @@ HortenWebSocket.prototype.onRemoteData = function ( msg ) {
 			this.set ( value, remotePath );
 		}
 		
-		console.log ( "GOT MESG set", set );
+		//console.log ( "GOT MESG set", set );
 
 	}
 	
@@ -193,7 +193,7 @@ HortenWebSocket.prototype._push = function ()
 		return;
 	}
 	
-	console.log ( "HWS PUSH", this._pushData );
+	//console.log ( "HWS PUSH", this._pushData );
 
 	var somethingToSend = false;
 	
@@ -240,7 +240,7 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	
 	websocket.onclose = function ()
 	{
-		console.log ( that.name, "onclose" );
+		//console.log ( that.name, "onclose" );
 		that.onremoteclose ();
 	};	
 

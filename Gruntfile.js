@@ -61,7 +61,7 @@ module.exports = function(grunt) {
 	grunt.initConfig({
 		pkg : config.pkg,
 		clean : {
-			dist : ['dist/'],
+			dist : ['dist/*.js'],
 
 		},
 		concat : {
