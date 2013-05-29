@@ -2079,7 +2079,7 @@ HortenSockJSServer = function ( conn, subPath, config, auth )
 	HortenWebSocket.call ( this, config );
 
 	if ( subPath )
-		this.path = Horten.pathString ( this.path + subPath );
+		this.path = Path ( this.path + subPath );
 
 	this.name = 'sjs://'+conn.remoteAddress;
 
