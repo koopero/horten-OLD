@@ -511,8 +511,6 @@ Horten.prototype.removeListener = function ( listener ) {
 
 	if ( listener._attachedToPath ) {
 
-		console.log ( "Removing listener from ", listener._attachedToPath );
-
 		var path = Path ( listener._attachedToPath );
 		var m = this.getMeta ( path, false );
 		

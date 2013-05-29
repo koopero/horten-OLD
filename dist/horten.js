@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-04-30
+ * horten v0.3.0 - 2013-05-29
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -76,6 +76,7 @@ Path.prototype.translate = function ( root, prefix ) {
 		
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
 }
+
 
 Path.prototype.startsWith = function ( root ) {
 	root = Path ( root );
@@ -599,8 +600,6 @@ Horten.prototype.removeListener = function ( listener ) {
 	}
 
 	if ( listener._attachedToPath ) {
-
-		console.log ( "Removing listener from ", listener._attachedToPath );
 
 		var path = Path ( listener._attachedToPath );
 		var m = this.getMeta ( path, false );
