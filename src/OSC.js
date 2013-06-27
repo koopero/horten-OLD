@@ -38,6 +38,10 @@ function HortenOSC ( config ) {
 		} );
 		
 	}
+
+	if ( config.client && config.client.host && config.client.port ) {
+		this.addClient ( config.client.host, config.client.port, false );
+	}
 	
 	this.close = function () {
 		this.remove()

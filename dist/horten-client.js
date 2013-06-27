@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-05-12
+ * horten v0.3.0 - 2013-05-29
  * Experimental shared-state communication framework.
  *
  * Copyright (c) 2013 koopero
@@ -78,6 +78,7 @@ Path.prototype.translate = function ( root, prefix ) {
 		
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
 }
+
 
 Path.prototype.startsWith = function ( root ) {
 	root = Path ( root );
@@ -1387,6 +1388,7 @@ HortenWebSocket.prototype.attachWebSocketNodeClient = function ( client ) {
  * 
  * @param url
  */
+Horten.WebSocketClient = HortenWebSocketClient;
 function HortenWebSocketClient ( url, config ) 
 {
 	var that = this;
@@ -1398,6 +1400,7 @@ function HortenWebSocketClient ( url, config )
 
 	if ( 'function' == typeof WebSocket ) {
 		this.reconnect = function () {
+			console.log ( "WebSocket connecting to", url );
 			client = new WebSocket ( url, 'horten-protocol' );
 			this.attachWebSocket ( client );
 		}

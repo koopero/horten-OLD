@@ -108,6 +108,7 @@ Path.prototype.translate = function ( root, prefix ) {
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
 }
 
+
 Path.prototype.startsWith = function ( root ) {
 	root = Path ( root );
 	var rootStrLen = root.string.length;

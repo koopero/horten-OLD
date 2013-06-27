@@ -319,6 +319,7 @@ HortenWebSocket.prototype.attachWebSocketNodeClient = function ( client ) {
  * 
  * @param url
  */
+Horten.WebSocketClient = HortenWebSocketClient;
 function HortenWebSocketClient ( url, config ) 
 {
 	var that = this;
@@ -330,6 +331,7 @@ function HortenWebSocketClient ( url, config )
 
 	if ( 'function' == typeof WebSocket ) {
 		this.reconnect = function () {
+			console.log ( "WebSocket connecting to", url );
 			client = new WebSocket ( url, 'horten-protocol' );
 			this.attachWebSocket ( client );
 		}
