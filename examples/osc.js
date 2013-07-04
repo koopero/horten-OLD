@@ -29,13 +29,12 @@ var lights = new H.OSC ( {
 	8000 incoming and 9000 outgoing, meshing up with the defaults
 	in TouchOSC, one of my favourite programs.  
 
-	OSC is a much different than connection oriented protocol like
+	OSC is a much different than connection-oriented protocol like
 	WebSocket. Often, it involves a lot of sending packets into the
 	ether, and doesn't complain if they never find a home. 
 
 	This makes it somewhat difficult to maintain sync between multiple
 	nodes, as clients have no way of getting a push from the server.
-	Still, 
 */
 var touchOSC = new H.OSC ( {
 	path: '/',
@@ -53,8 +52,7 @@ var touchOSC = new H.OSC ( {
 		to a list of servers who will receive pushed data. This works by
 		taking the unique ip addresses of incoming OSC data and henceforth
 		pushing all changes to them on the following port:
-	*/
-		
+	*/	
 	autoClient: 9000,
 
 	/*
@@ -78,8 +76,6 @@ var touchOSC = new H.OSC ( {
 
 	See the file HortenTest.touchosc 
 */
-
-
 var phase = 0;
 var frameRate = 60;
 setInterval ( spin, 1000/frameRate);

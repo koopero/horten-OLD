@@ -25,7 +25,7 @@ var H = require('horten');
 
 		curl example.com:1337 
 
-	Will output JSON for all Horten data. Of course, paths work as they
+	will output JSON for all Horten data. Of course, paths work as they
 	should.
 
 		curl example.com:1337/foo/bar -D '2'

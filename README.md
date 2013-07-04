@@ -1,12 +1,13 @@
 # Horten
 ## This is a work in progress. Try it out if you like, but you're better to wait till a release.
+Horten is an **experimental** framework for sharing and persisting schema-free, high-frequency data between multiple clients and servers in real time.
 
 ## Overview
-Horten is an **experimental** framework for sharing and persisting schema- free, high-frequency data between multple clients and servers in real time. 
+The basic principle of `Horten` is a big, globally shared object, accessible by a `Path`, using the verbs `set` and `get`. 
 
-The basic principle of `Horten` is a big, globally shared object, accessible by a `Path`.
+The following examples use the global `H` shorthand for `Horten`, which is default. Also note that these example are cumulative.
 
-	Horten.set ( {
+	H.set ( {
 		screen: {
 			box: {
 				x: 420,
@@ -15,15 +16,16 @@ The basic principle of `Horten` is a big, globally shared object, accessible by 
 		}
 	);
 	
-	Horten.get ( 'screen/box/x' ) == 420
-	Horten.get ( 'screen' ) == { box: { x: 420, y:247 } }
-Any `Path`, whether it exists or not, can be `set` to any value. The standard order for Horten calls is ` func( value, path ) `.  
+	H.get ( 'screen/box/x' ) == 420
+	H.get ( 'screen' ) == { box: { x: 420, y:247 } }
 	
-	Horten.set ( 252, 'screen/box/y' )
-	Horten.set ( 0.6, 'colour/h' )
-	Horten.set ( { colour: { s:0.1, v:1.5 } } )
-`Horten.get()` is now:
+Any `Path`, whether it exists or not, can be `set` to any value. The standard order for Horten calls is `func( value, path ) `, as path is easier to default than value. 
 	
+	H.set ( 252, 'screen/box/y' );
+	H.set ( { screen: { colour: { s:0.1, v:1.5 } } } );
+	H.Path ( '/screen/colour/h' ).set( 0.6 );
+	
+    H.get() ==	
 	{
 		screen: {
 			box: {
@@ -41,62 +43,73 @@ Notice that objects are merged together, never deleting values unless necessary.
 
 This is useful when we start using `Listener`.
 
-	listener = new Horten.Listener ( 'screen/box', 
+	listener = H.listen ( 'screen/box', 
 		function ( value ) {
 			console.log ( 'box is at', value )
 		} 
 	);
 	
-	Horten.set ( 456, 'screen/box/x' )
+	H.set ( 456, 'screen/box/x' )
 	
 	// 'box is at' { x: 452, y: 252 }
 
 `Listeners` are called asynchronously after the data at their `Path` changes. This means that they are called every javascript frame, rather than every time a value is changed.
 
-	Horten.set ( 480, 'screen/box/x' )
+	H.set ( 480, 'screen/box/x' )
 	
-	Horten.set ( 911, 'screen/box/y' )
-	Horten.set ( 101, 'screen/box/y' )
-	Horten.set ( 420, 'screen/box/y' )
+	H.set ( 911, 'screen/box/y' )
+	H.set ( 101, 'screen/box/y' )
+	H.set ( 420, 'screen/box/y' )
 	
 	// Callback is only called once
 	// 'box is at' { x: 480, y: 420 }
 	
-`Listeners` can also be used to `set` data at a `Path` **relative** to theirs. When a `Listener` sets itself, its `callback` is not triggered, so as to prevent echoing.
+`Listeners` can also be used to `set` data at a `Path` **relative** to theirs. When a `Listener` sets itself, its `callback` is not triggered, so as to help prevent echoing.
 
 	listener.set ( { alpha: 0.8 } )
 		
 	// Callback is NOT called, as listener 
 	
-`Listeners` can also go into `primitive` mode, where they receive only primitive values, and never whole objects. This is pretty useful.
+`Listeners` can also go into `primitive` mode, where they receive only primitive values, and never whole objects. This is meant for callbacks which can handle many subpaths:
 
-	listener = Horten.listen ( 'screen', 
+	listener = Horten.listenPrimitive ( 'screen', 
 		function ( value, path ) {
 		
+			// Listen to one specific path
 			if ( path.is( 'box/visible' ) ) {
 				view.box.transparent = !value;
 			}
 
-			if ( path.startsWith ( 'colour' ) ) {
-				
+			// Listen to one than one path. 
+			if ( remainder = path.startsWith ( 'colour' ) ) {
+				channel = ['r','g','b'].indexOf ( remainder.seg( 0 ) );
+				view.box.setColourChannel ( channel, Number( value ) );
 			}
 			
 		}
 	)
+	
+
 	
 # But wait, there's more!
 And you'll hear all about it when I finish these docs.
 	
 ## Connections
 ### MySQL
-Horten can read and write a MySQL or MariaDB database. The basic row is  `( path, value, time )`, storing only **primitive** values. This allows an application to journal every part of its state in millisecond increments. This state can be recalled easily when your application is loaded. For more detail, read the [Docs](docs/MySQL.md). 
+Horten can read and write a MySQL or MariaDB database. The basic row is  `( path, value, time )`, storing only **primitive** values. This allows an application to journal every part of its state in millisecond increments. This state can be recalled easily when your application is loaded, allowing for easy, reliable persistence.  
+
+For more detail, read the [Docs](docs/MySQL.md) and see the [mysql examples](examples/mysql.js). 
 ### OSC
-Horten was originally designed for creative coding purposes, so naturally it includes a fully functional OSC client and server. This tested with [TouchOSC](http://hexler.net/software/touchosc) and [Quartz Composer](http://quartzcomposer.com/), although the latter hasn't been as successful. 
+Horten was originally designed for creative coding purposes, so naturally it includes a fully functional OSC client and server. This tested with [TouchOSC](http://hexler.net/software/touchosc), [pyOSC](https://trac.v2.nl/wiki/pyOSC) and [Quartz Composer](http://quartzcomposer.com/), although Quartz hasn't been very successful. 
+
+For more detail, see the [osc example](examples/osc.js). 
 
 ### http
 The Horten http server is a minimal RESTful interface that allows the speedy use of `POST`, `GET`, `DELETE` on any `Path`. Security is a callback.
 
 **Please note that Horten currently doesn't play nicely with any other frameworks, and requires its own http servers.** 
+
+For more detail, see the [server example](examples/server.js). 
   
 ### Websocket / SockJS
 Adding fast connections to web clients is as easy as:
@@ -105,7 +118,7 @@ Adding fast connections to web clients is as easy as:
 
 This will create a connection to the server using either `WebSocket` or `SockJS`, load the `global` `Horten` and pull down state from the server with `/the/path/` mapped as root. The local state will be set soon after any change is made on the server. Local changes will be continuously sent to the server as `(value,path)` pairs.
 
-
+For more detail, see the [server example](examples/server.js). 
 
 ## Warning!
 Horten is an **experimental** piece of software. It has never been used on anything but a **micro scale**, and even then it has often failed and learned. 

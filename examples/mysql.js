@@ -81,7 +81,7 @@ var history = new H.MySQL ( {
 
 
 /*
-	A stupid little tester that set the Paths /milleseconds/, 
+	A stupid little tester that sets the Paths /milleseconds/, 
 	/date/ and /counter/ to boring, but dynamic values.
 */
 var tickerI = 0;
@@ -96,5 +96,4 @@ function ticker () {
 	);
 	tickerI ++;
 };
-
 setInterval ( ticker, 1000 );
