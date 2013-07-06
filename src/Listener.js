@@ -33,10 +33,7 @@ function Listener ( options, onData )
 		if ( options.attach !== false )
 			this.attach ();
 
-	} 
-		
-
-
+	}
 };
 
 Listener.prototype.attach = function ( horten )
@@ -90,7 +87,7 @@ Listener.prototype.get = function ( path )
 
 Listener.prototype.set = function ( value, path, flags )
 {
-	if ( path == undefined || path == null )
+	if ( path == undefined || path == null || path == '/' || path == '' )
 		path = this.prefix;
 	
 	path = Path ( path ).translate ( this.prefix, this.path );

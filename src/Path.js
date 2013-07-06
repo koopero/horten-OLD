@@ -77,8 +77,40 @@ function Path ( parse ) {
  	this.length = pathArr.length;
 }
  
-Path.prototype.getSegment = function ( i ) {
+Path.prototype.seg = function ( i ) {
 	return this.array[i];
+}
+
+
+//	--------------------
+//	Orthogonal Convience
+//	--------------------
+
+Path.prototype.set = function ( value, path, flags, origin, horten ) {
+	horten = horten || Horten.getInstance();
+
+	if ( path == undefined )
+		return horten.set( value, this, flags, origin );
+
+	path = this.append ( path );
+
+	return horten.set ( value, path, flags, origin );
+}
+
+Path.prototype.get = function ( path, horten ) {
+	horten = horten || Horten.getInstance();
+
+	if ( path == undefined )
+		return horten.get( this );
+
+	path = this.append ( path );
+
+	return horten.get ( path );	
+}
+
+
+Path.prototype.append = function ( postfix ) {
+
 }
 
 /**
@@ -106,6 +138,12 @@ Path.prototype.translate = function ( root, prefix ) {
 		return this;
 		
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
+}
+
+
+Path.prototype.is = function ( compare ) {
+	compare = Path ( compare );
+	return this == compare;
 }
 
 

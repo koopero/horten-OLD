@@ -78,18 +78,10 @@ Horten.prototype.get = function ( path, original ) {
 	return d;
 }
 
-/** 
-	Same as Horten.prototype.get, except uses the default Horten
-	instance as available from Horten.instance()
-*/
-Horten.get = function ( path, original ) {
-	return Horten.instance().get ( path, original );
-	
-}
+
 
 /**
 	Enum of flags to be used with Horten.prototype.set.
-	
 */
 Horten.setFlags = {
 	keepTopology: 	2,
@@ -172,7 +164,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	// as well as the meta variable, although if meta doesn't
 	// continue, that's fine.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		var dp = d[p];
 		
 		if ( dp == null || 'object' != typeof dp ) {
@@ -223,7 +215,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	if ( pathLength == 0 ) {
 		touched = merge ( value, d, m, '/', lp ) || touched;
 	} else {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		m = m && m['_'] && m['_'][p];
 		touched = set ( p, value, d, m, path.toString(), lp ) || touched;
 	}
@@ -410,26 +402,47 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	}
 }
 
-/** 
-	Same as Horten.prototype.set, except uses the default Horten
-	instance as available from Horten.instance()
-*/
-Horten.set = function ( value, path, flags, origin ) {
-	return Horten.instance().set ( value, path, flags, origin );
+
+//	---------
+//	Listening
+//	---------
+
+Horten.prototype.listen = function ( path, callback ) 
+{
+	
 }
+
+Horten.prototype.listenPrimitive = function ( path, callback )
+{
+
+}
+
+//	--------------------
+//	Orthogonal Convience
+//	--------------------
+
+Horten.set = function ( value, path, flags, origin ) 
+	{	return Horten.instance().set ( value, path, flags, origin ); }
+Horten.get = function ( path, original ) 
+	{	return Horten.instance().get ( path, original ); }
+Horten.listen = function ( path, callback, options ) 
+	{	return Horten.instance().listen ( path, callback, options ); }
+Horten.listenPrimitive = function ( path, callback, options ) 
+	{	return Horten.instance().listenPrimitive ( path, callback, options ); }
 
 /**
 	Returns the meta object at a given path. If the create parameter is
 	true, a meta object will be created and its existence guaranteed. If
 	not, undefined will be return if the meta path does not exist.
 */
-Horten.prototype.getMeta = function ( path, create ) {
+Horten.prototype.getMeta = function ( path, create ) 
+{
 	path = Path ( path );
 	
 	var m = this.meta;
 	var i = 0, p;
 	
-	while ( p = path.getSegment ( i ) ) {
+	while ( p = path.seg ( i ) ) {
 		if ( !m['_'] ) {
 			if ( create ) 
 				m['_'] = {};
@@ -445,6 +458,37 @@ Horten.prototype.getMeta = function ( path, create ) {
 	}		
 	
 	return m;
+}
+
+//	---------
+//	Listeners
+//	---------
+
+Horten.prototype.listen = function ( path, callback, options )
+{
+	if ( !options )
+		options = {};
+
+	options.path = Path( path );
+
+	var listener = new Listener ( options );
+	listener.callback = callback;
+	this.attachListener( listener );
+	return listener;
+}
+
+Horten.prototype.listenPrimitive = function ( path, callback, options )
+{
+	if ( !options )
+		options = {};
+
+	options.path = Path( path );
+	options.primitive = true;
+
+	var listener = new Listener ( options );
+	listener.callback = callback;
+	this.attachListener( listener );
+	return listener;
 }
 
 /**
@@ -478,7 +522,8 @@ Horten.prototype.getMeta = function ( path, create ) {
 		_primitiveChanges	
 		_objectChange		Changes pending a flush
 */
-Horten.prototype.attachListener = function ( listener ) {
+Horten.prototype.attachListener = function ( listener ) 
+{
 	if ( listener.horten && listener.horten != this ) {
 		listener.horten.removeListener ( listener );
 	} else {
@@ -504,7 +549,8 @@ Horten.prototype.attachListener = function ( listener ) {
 /** 
 	Remove a listener object from this Horten instance.
 */
-Horten.prototype.removeListener = function ( listener ) {
+Horten.prototype.removeListener = function ( listener )
+{
 	if ( listener.horten && listener.horten != this ) {
 		throw 'Trying to remove listener attached to different Horten instance';
 	}
@@ -550,7 +596,8 @@ Horten.prototype.removeListener = function ( listener ) {
 	using a delayed call from Horten.prototype.set, but in exceptional circumstances,
 	it can be done manually.
 */
-Horten.prototype.flush = function () {
+Horten.prototype.flush = function ()
+{
 	var that = this;
 	
 	var listeners = this._pendingListeners;
@@ -597,6 +644,11 @@ Horten.prototype.flush = function () {
 	delete this._pendingListeners;
 }
 
+//	-----------------
+//	Utility functions
+//	-----------------
+
+
 /** 
 	Merge two objects together, using more or less the same rules as Horten.set, except
 	without calling listeners and all that jazz.
@@ -631,7 +683,7 @@ Horten.merge = function ( object, value, path, flags )
 	// Walk to one level short of where our given path tells
 	// us to start. This will walk up the d variable.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		
 		if ( d[p] == null || 'object' != typeof d[p] ) {
 			if ( flags & Horten.setFlags.keepTopology ) {
@@ -654,11 +706,9 @@ Horten.merge = function ( object, value, path, flags )
 	if ( pathLength == 0 ) {
 		merge ( value, d, '/' );
 	} else {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		set ( p, value, d, path.toString() );
 	}
-	
-
 	
 	return object;
 
@@ -712,7 +762,6 @@ Horten.merge = function ( object, value, path, flags )
 		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
 		var newIsOb = value != null && 'object' == typeof value;
 		
-		
 		if ( 
 			!newIsOb && 
 			currentValue === value
@@ -753,7 +802,6 @@ Horten.walkObject = function ( d, path, original ) {
 		return undefined;
 	}
 
-
 	// Walk our data object to get the path we're after.
 	for ( var i = 0; i < l && d != null; i ++ ) {
 		d = d[p[i]];
@@ -767,7 +815,9 @@ Horten.walkObject = function ( d, path, original ) {
 	return d;
 }
 
-
+/*
+	Clone an object. Been done a million time, this one ain't much different.
+*/
 Horten.clone = function ( ob ) {
 	return 'object' == typeof ob ? clone( ob ) : ob;
 
