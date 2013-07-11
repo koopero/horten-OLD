@@ -27,6 +27,7 @@ module.exports = function(grunt) {
 			'src/Listener.js',
 			'src/MySQL.js',
 			'src/WebSocket.js',
+			'src/Client.js',
 			'src/Server.js',
 			'src/OSC.js',
 			'src/export.js',

@@ -2,7 +2,7 @@ var H = require('horten');
 /*
 	Debug everything, so we can see what's coming back from pull.
 */
-H.instance().debug = true;
+//H.instance().debug = true;
 
 var hostname = "localhost";
 

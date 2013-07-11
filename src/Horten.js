@@ -332,7 +332,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 			touched = true;
 			
 			if ( that.debug ) {
-				console.log ( origin ? origin.name : '<anon>', path, value ); 
+				console.log ( origin ? origin.name : '<anon>', path, JSON.stringify( value ) ); 
 			}
 			
 			triggerPrimitiveListeners ( lp, path, value );
