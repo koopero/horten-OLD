@@ -29,9 +29,13 @@ describe('Path', function() {
 
 	it('should deal with stupid or irregular input', function () {
 		H.Path( '//////qux/////quark/'  ).string.should.equal ( '/qux/quark/' );
-
 		H.Path( ['/foo/', null, 2 ]  ).string.should.equal ( '/foo/2/' );
 		H.Path( false ).string.should.equal ( '/false/' );
+		H.Path( 0 ).string.should.equal ( '/0/' );
+	})
+
+	it('should deal with unicode', function () {
+		H.Path( 'ɥʇɐd//uɐılɐɹʇsnɐ'  ).string.should.equal ( '/ɥʇɐd/uɐılɐɹʇsnɐ/' );
 	})
 
 	describe('#translate', function () {
