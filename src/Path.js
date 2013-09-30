@@ -87,7 +87,7 @@ Path.prototype.seg = function ( i ) {
 //	--------------------
 
 Path.prototype.set = function ( value, path, flags, origin, horten ) {
-	horten = horten || Horten.getInstance();
+	horten = horten || this.horten || Horten.instance();
 
 	if ( path == undefined )
 		return horten.set( value, this, flags, origin );
@@ -98,7 +98,7 @@ Path.prototype.set = function ( value, path, flags, origin, horten ) {
 }
 
 Path.prototype.get = function ( path, horten ) {
-	horten = horten || Horten.getInstance();
+	horten = horten || this.horten || Horten.instance();
 
 	if ( path == undefined )
 		return horten.get( this );
@@ -110,7 +110,7 @@ Path.prototype.get = function ( path, horten ) {
 
 
 Path.prototype.append = function ( postfix ) {
-
+	return Path(this.string + postfix);
 }
 
 /**

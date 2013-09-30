@@ -1,10 +1,12 @@
 /**
- * horten v0.3.0 - 2013-05-29
- * Experimental shared-state communication framework.
+ * horten v0.3.0 - 2013-09-29
+ * Experimental shared-state communication framework. Speaks Javascript, MySQL, OSC and WebSocket.
  *
  * Copyright (c) 2013 koopero
  * Licensed MIT
  */
+var urlParse = require('url').parse;
+
 Horten.Path = Path;
 
 function Path ( parse ) {
@@ -46,8 +48,40 @@ function Path ( parse ) {
  	this.length = pathArr.length;
 }
  
-Path.prototype.getSegment = function ( i ) {
+Path.prototype.seg = function ( i ) {
 	return this.array[i];
+}
+
+
+//	--------------------
+//	Orthogonal Convience
+//	--------------------
+
+Path.prototype.set = function ( value, path, flags, origin, horten ) {
+	horten = horten || this.horten || Horten.instance();
+
+	if ( path == undefined )
+		return horten.set( value, this, flags, origin );
+
+	path = this.append ( path );
+
+	return horten.set ( value, path, flags, origin );
+}
+
+Path.prototype.get = function ( path, horten ) {
+	horten = horten || this.horten || Horten.instance();
+
+	if ( path == undefined )
+		return horten.get( this );
+
+	path = this.append ( path );
+
+	return horten.get ( path );	
+}
+
+
+Path.prototype.append = function ( postfix ) {
+	return Path(this.string + postfix);
 }
 
 /**
@@ -75,6 +109,12 @@ Path.prototype.translate = function ( root, prefix ) {
 		return this;
 		
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
+}
+
+
+Path.prototype.is = function ( compare ) {
+	compare = Path ( compare );
+	return this == compare;
 }
 
 
@@ -168,23 +208,16 @@ Horten.prototype.get = function ( path, original ) {
 	return d;
 }
 
-/** 
-	Same as Horten.prototype.get, except uses the default Horten
-	instance as available from Horten.instance()
-*/
-Horten.get = function ( path, original ) {
-	return Horten.instance().get ( path, original );
-	
-}
+
 
 /**
 	Enum of flags to be used with Horten.prototype.set.
-	
 */
 Horten.setFlags = {
 	keepTopology: 	2,
 	forceListeners: 4,
-	replace:		8
+	replace:		8,
+	readOnly: 		16 
 }
 
 
@@ -262,7 +295,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	// as well as the meta variable, although if meta doesn't
 	// continue, that's fine.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		var dp = d[p];
 		
 		if ( dp == null || 'object' != typeof dp ) {
@@ -313,7 +346,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	if ( pathLength == 0 ) {
 		touched = merge ( value, d, m, '/', lp ) || touched;
 	} else {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		m = m && m['_'] && m['_'][p];
 		touched = set ( p, value, d, m, path.toString(), lp ) || touched;
 	}
@@ -430,7 +463,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 			touched = true;
 			
 			if ( that.debug ) {
-				console.log ( origin ? origin.name : '<anon>', path, value ); 
+				console.log ( origin ? origin.name : '<anon>', path, JSON.stringify( value ) ); 
 			}
 			
 			triggerPrimitiveListeners ( lp, path, value );
@@ -500,26 +533,32 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	}
 }
 
-/** 
-	Same as Horten.prototype.set, except uses the default Horten
-	instance as available from Horten.instance()
-*/
-Horten.set = function ( value, path, flags, origin ) {
-	return Horten.instance().set ( value, path, flags, origin );
-}
+//	--------------------
+//	Orthogonal Convience
+//	--------------------
+
+Horten.set = function ( value, path, flags, origin ) 
+	{	return Horten.instance().set ( value, path, flags, origin ); }
+Horten.get = function ( path, original ) 
+	{	return Horten.instance().get ( path, original ); }
+Horten.listen = function ( path, callback, options ) 
+	{	return Horten.instance().listen ( path, callback, options ); }
+Horten.listenPrimitive = function ( path, callback, options ) 
+	{	return Horten.instance().listenPrimitive ( path, callback, options ); }
 
 /**
 	Returns the meta object at a given path. If the create parameter is
 	true, a meta object will be created and its existence guaranteed. If
 	not, undefined will be return if the meta path does not exist.
 */
-Horten.prototype.getMeta = function ( path, create ) {
+Horten.prototype.getMeta = function ( path, create ) 
+{
 	path = Path ( path );
 	
 	var m = this.meta;
 	var i = 0, p;
 	
-	while ( p = path.getSegment ( i ) ) {
+	while ( p = path.seg ( i ) ) {
 		if ( !m['_'] ) {
 			if ( create ) 
 				m['_'] = {};
@@ -535,6 +574,43 @@ Horten.prototype.getMeta = function ( path, create ) {
 	}		
 	
 	return m;
+}
+
+Horten.prototype.log = function ()
+{
+	var args = Array.prototype.slice.call( arguments );
+	console.log ( args.map( String ).join('\t') );
+}
+
+//	---------
+//	Listeners
+//	---------
+
+Horten.prototype.listen = function ( path, callback, options )
+{
+	if ( !options )
+		options = {};
+
+	options.path = Path( path );
+
+	var listener = new Listener ( options );
+	listener.callback = callback;
+	this.attachListener( listener );
+	return listener;
+}
+
+Horten.prototype.listenPrimitive = function ( path, callback, options )
+{
+	if ( !options )
+		options = {};
+
+	options.path = Path( path );
+	options.primitive = true;
+
+	var listener = new Listener ( options );
+	listener.callback = callback;
+	this.attachListener( listener );
+	return listener;
 }
 
 /**
@@ -568,7 +644,8 @@ Horten.prototype.getMeta = function ( path, create ) {
 		_primitiveChanges	
 		_objectChange		Changes pending a flush
 */
-Horten.prototype.attachListener = function ( listener ) {
+Horten.prototype.attachListener = function ( listener ) 
+{
 	if ( listener.horten && listener.horten != this ) {
 		listener.horten.removeListener ( listener );
 	} else {
@@ -594,7 +671,8 @@ Horten.prototype.attachListener = function ( listener ) {
 /** 
 	Remove a listener object from this Horten instance.
 */
-Horten.prototype.removeListener = function ( listener ) {
+Horten.prototype.removeListener = function ( listener )
+{
 	if ( listener.horten && listener.horten != this ) {
 		throw 'Trying to remove listener attached to different Horten instance';
 	}
@@ -640,7 +718,8 @@ Horten.prototype.removeListener = function ( listener ) {
 	using a delayed call from Horten.prototype.set, but in exceptional circumstances,
 	it can be done manually.
 */
-Horten.prototype.flush = function () {
+Horten.prototype.flush = function ()
+{
 	var that = this;
 	
 	var listeners = this._pendingListeners;
@@ -687,6 +766,11 @@ Horten.prototype.flush = function () {
 	delete this._pendingListeners;
 }
 
+//	-----------------
+//	Utility functions
+//	-----------------
+
+
 /** 
 	Merge two objects together, using more or less the same rules as Horten.set, except
 	without calling listeners and all that jazz.
@@ -721,7 +805,7 @@ Horten.merge = function ( object, value, path, flags )
 	// Walk to one level short of where our given path tells
 	// us to start. This will walk up the d variable.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		
 		if ( d[p] == null || 'object' != typeof d[p] ) {
 			if ( flags & Horten.setFlags.keepTopology ) {
@@ -744,11 +828,9 @@ Horten.merge = function ( object, value, path, flags )
 	if ( pathLength == 0 ) {
 		merge ( value, d, '/' );
 	} else {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		set ( p, value, d, path.toString() );
 	}
-	
-
 	
 	return object;
 
@@ -802,7 +884,6 @@ Horten.merge = function ( object, value, path, flags )
 		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
 		var newIsOb = value != null && 'object' == typeof value;
 		
-		
 		if ( 
 			!newIsOb && 
 			currentValue === value
@@ -843,7 +924,6 @@ Horten.walkObject = function ( d, path, original ) {
 		return undefined;
 	}
 
-
 	// Walk our data object to get the path we're after.
 	for ( var i = 0; i < l && d != null; i ++ ) {
 		d = d[p[i]];
@@ -857,7 +937,9 @@ Horten.walkObject = function ( d, path, original ) {
 	return d;
 }
 
-
+/*
+	Clone an object. Been done a million time, this one ain't much different.
+*/
 Horten.clone = function ( ob ) {
 	return 'object' == typeof ob ? clone( ob ) : ob;
 
@@ -971,16 +1053,17 @@ function Listener ( options, onData )
 
 		this.primitive = !!options.primitive;
 		this.horten = options.horten || Horten.instance ();
+		
+		if ( options.debug )
+			this.debug = true;
+
 		if ( 'function' == typeof onData )
 			this.onData = onData;
 
 		if ( options.attach !== false )
 			this.attach ();
 
-	} 
-		
-
-
+	}
 };
 
 Listener.prototype.attach = function ( horten )
@@ -1034,7 +1117,7 @@ Listener.prototype.get = function ( path )
 
 Listener.prototype.set = function ( value, path, flags )
 {
-	if ( path == undefined || path == null )
+	if ( path == undefined || path == null || path == '/' || path == '' )
 		path = this.prefix;
 	
 	path = Path ( path ).translate ( this.prefix, this.path );
@@ -1065,7 +1148,17 @@ Listener.prototype.onData = function ( path, value, method, origin )
 	}
 	// Do what you will be here.
 }
-HortenMySQL.prototype = new Horten.Listener ( false );
+
+Listener.prototype.setPath = function ( newPath ) 
+{
+	var wasAttached = !!this._attachedToPath;
+	this.remove();
+	this.path = Path( newPath );
+
+	if ( wasAttached )
+		this.attach();
+}
+HortenMySQL.prototype = new Listener ( false );
 HortenMySQL.prototype.contructor = HortenMySQL;
 
 /**
@@ -1094,21 +1187,38 @@ HortenMySQL.prototype.contructor = HortenMySQL;
 
 function HortenMySQL ( config ) {
 
-	if ( config.history ) {
-		if ( config.timeOffset )
-			this.timeOffset = -Date.parse ( config.timeOffset );
-		else
-			this.timeOffset = 0;
+	if ( 'string' == typeof config.connection ) {
+		var u = urlParse( config.connection );
+		var userPass = String(u.auth).split(':');
+		var urlPath = u.pathname.substr(1).split('/');
 
-		if ( config.timeQuant )
-			this.timeQuant = parseFloat ( config.quantizeTime );
-		else
-			this.timeQuant = 1000;
+		if ( urlPath.length != 2 )
+			throw new Error ( 'connection url must be in form mysql://user:pass@hostname/database/table' );
 
-		this.history = true;
-	} else {
-		this.history = false;
+		config.connection = {
+			host: u.hostname,
+			user: userPass[0],
+			port: u.port || 3306,
+			password: userPass[1],
+			database: urlPath[0]
+		};
+
+		config.table = config.table || urlPath[ 1 ];
 	}
+
+
+	if ( config.timeOffset )
+		this.timeOffset = -Date.parse ( config.timeOffset );
+	else
+		this.timeOffset = 0;
+
+	if ( config.timeQuant )
+		this.timeQuant = parseFloat ( config.quantizeTime );
+	else
+		this.timeQuant = 1000;
+
+
+	this.history = !!config.history;
 
 	// Questionable magic number
 	this.pathLength = parseInt ( config.pathLength ) || 640;
@@ -1230,21 +1340,19 @@ function HortenMySQL ( config ) {
 	//	Initialize Connection
 	//
 	function connect ( connection ) {
-		var connection;
 
-		if ( 'object' != typeof config.connection || config.connection == null ) {
+		if ( 'object' != typeof connection ) {
 			// Need something!
 			throw 'Connection details not specified';
-		} else if ( config.connection._protocol ) {
+		} else if ( connection._protocol ) {
 			// A flaky way of determining if the connection passed in config
 			// is a real connection, as oppose to the configuration for one.
-			connection = config.connection
 		} else {
 			connection = require ( 'mysql' ).createConnection ( connection );
 		}
 
 		connection.on('error', function ( err ) {
-			console.log ( that.name, 'Mysql Error', JSON.stringify ( err ) );
+			that.horten.log ( that.name, 'error', JSON.stringify ( err.code ) );
 		});
 
 		connection.on('close', function ( err ) {
@@ -1263,7 +1371,6 @@ function HortenMySQL ( config ) {
 				that.connected = true;
 				that.flush();
 			} else {
-				console.log ( "BAD CONNECTION!", err );
 				// Handle bad connection here!
 			}
 		});
@@ -1289,8 +1396,8 @@ function HortenMySQL ( config ) {
 		this.query ( sql, 
 			function ( err, result ) {
 				if ( err ) {
-					console.log ( err );
-					throw 'SQL error creating tables.';
+					that.horten.log( that.name, "Error creating table" );
+					throw 'SQL Error';
 				}
 			}
 		);
@@ -1457,6 +1564,8 @@ HortenMySQL.prototype.getPathId = function ( path )
 
 HortenMySQL.prototype.onData = function ( value, path, method, origin )
 {
+	//console.log ( "MYSQL ONDATA", value, path, method, origin );
+
 	var time = this.escapeDate( new Date () );
 	
 	var out = [ path, value, time, method, origin ];
@@ -1478,12 +1587,12 @@ HortenMySQL.prototype.flush = function ( callback )
 		}
 
 		if ( 'function' == typeof callback ) {
-	 		process.nextTick ( function() {
+			process.nextTick ( function() {
 				callback ();
 			} );
-	 	}
+		}
 
-	 	return;
+		return;
 	} else if ( 'function' == typeof callback ) {
 		if ( !this._flushCallbacks )
 			this._flushCallbacks = [];
@@ -1547,6 +1656,9 @@ HortenMySQL.prototype.flush = function ( callback )
 				if ( c.time  )
 					set[c.time] = time;
 				
+				if ( 'object' == typeof origin )
+					origin = origin.name;
+
 				if ( origin && c.origin ) 
 					set[c.origin] = origin;
 				
@@ -1588,50 +1700,15 @@ HortenMySQL.prototype.flush = function ( callback )
 }
 
 Horten.MySQL = HortenMySQL;
-if ( 'function' == typeof require && 'object' == typeof exports ) {
-	//	Stupid check to see if we're in a node environment,
-	//	as opposed to the browser.
-	//var WebSocket = require('websocket');
-	var WebSocketClient = require('websocket').client;
+function Connection ( config ) {
+	config.primitive = true;
 
-	exports.jsFile = __filename;
-}
-
-Horten.WebSocket = HortenWebSocket;
-function HortenWebSocket ( config )
-{
+	this.keepAlive = config.keepAlive;
+	
 	Listener.call ( this, config );
-
-
-	this.primitive = true;
-	// Magic object
-	this.FILL_DATA = {};
-
-	if ( config ) {
-		this.keepAlive = config && !!config.keepAlive;
-		this.attach ();
-	}
 }
 
-HortenWebSocket.prototype = new Listener ( null );
-
-HortenWebSocket.connect = function ( connectOpts ) {
-	//console.log ( "Trying connect with", connectOpts, WebSocket );
-	var ret;
-
-	if ( 'function' == typeof WebSocket && connectOpts.WebSocket ) {
-		ret = new HortenWebSocketClient ( connectOpts.WebSocket );
-		ret.attach();
-	} else if ( 'function' == typeof SockJS && connectOpts.SockJS ) {
-		ret = new HortenSockJSClient ( connectOpts.SockJS, connectOpts.path );
-		ret.attach();
-	} else {
-		console.log( "Nothing to connect with" );
-	}
-
-	return ret;
-}
-
+Connection.prototype = new Listener( null );
 
 /** 
  * Queue one or more paths to pull from the server. This will ask the server
@@ -1643,21 +1720,20 @@ HortenWebSocket.connect = function ( connectOpts ) {
  * 
  * @param paths
  */
-HortenWebSocket.prototype.pull = function ( path )
+Connection.prototype.pull = function ( path )
 {
 	path = Path( path ).string;
 
 	if ( !this._pullPaths )
 		this._pullPaths = [];
 	
-
 	if ( this._pullPaths.indexOf ( path ) == -1 )
 		this._pullPaths.push ( path );
 	
 	this._pull ();
 };
 
-HortenWebSocket.prototype._pull = function () 
+Connection.prototype._pull = function () 
 {
 	if ( !this._pullPaths || !this._pullPaths.length )
 		return;
@@ -1677,12 +1753,9 @@ HortenWebSocket.prototype._pull = function ()
 }
 
 
-
-
-HortenWebSocket.prototype.push = function ( path )
+Connection.prototype.push = function ( path )
 {
 	path = Path ( path );
-	
 
 	if ( !this._pushData )
 		this._pushData = {};
@@ -1691,99 +1764,14 @@ HortenWebSocket.prototype.push = function ( path )
 	this._push();
 }
 
-HortenWebSocket.prototype.readyToSend = function ()
-{
-	return false;
-}
-
-/**
- * Called when the other end of the connection drops
- * unexpectedly.
- */
-
-HortenWebSocket.prototype.onremoteclose = function ()
-{	
-	var that = this;
-	if ( this.keepAlive && 'function' == typeof this.reconnect ) {
-		console.log ( that.name, 'Remote closed, retrying in 1 second' );
-
-		setTimeout ( function () {
-			that.reconnect ();
-		}, 1000 );
-	} else {
-		console.log ( that.name, 'Closed by remote' );
-		
-		this.close();
-	}
-}
-
-HortenWebSocket.prototype.onData = function ( value, path )
-{
-	//console.log ( 'HWS ONDATA', value, path);
-
-	if ( !this._pushData )
-		this._pushData = {};
-	
-	this._pushData[path] = value;
-
-	// Should delay push here
-	this._push();
-}
-
-HortenWebSocket.prototype.onRemoteData = function ( msg ) {
-	if ( 'string' == typeof msg ) {
-		try {
-			msg = JSON.parse ( msg );
-		} catch ( e ) {
-			console.log ( this.name, 'Bad JSON from remote' );
-			return;
-		}
-	}
-
-			
-	if ( msg.set ) {
-		var set = {};
-		//console.log ( 'msg.set '+JSON.stringify ( msg.set ) );
-		
-		for ( var remotePath in msg.set ) {
-			
-			var value = msg.set[remotePath];
-			
-			this.set ( value, remotePath );
-		}
-		
-		//console.log ( "GOT MESG set", set );
-
-	}
-	
-	if ( msg.get ) {
-		this.push( msg.get );
-	}
-}
-
-/** Close the connection with no hope of reopening */
-HortenWebSocket.prototype.close = function ()
-{
-	this.remove();
-	this.keepAlive = false;
-	
-	if ( 'function' == typeof this._close ) {
-		this._close();
-	}
-};
-
-HortenWebSocket.prototype._push = function ()
+Connection.prototype._push = function ()
 {
 	if ( !this._pushData )
 		return;
-	
-	
 
 	if ( !this.readyToSend() ) {
 		return;
 	}
-	
-	//console.log ( "HWS PUSH", this._pushData );
 
 	var somethingToSend = false;
 	
@@ -1804,10 +1792,96 @@ HortenWebSocket.prototype._push = function ()
 	this._pushData = {};	
 }
 
+Connection.prototype.readyToSend = function ()
+{
+	return false;
+}
+
 /**
- * 
+ * Called when the other end of the connection drops
+ * unexpectedly.
  */
-HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
+
+Connection.prototype.onRemoteClose = function ()
+{	
+	var that = this;
+	if ( this.keepAlive && 'function' == typeof this.reconnect ) {
+		console.log ( that.name, 'Remote closed, retrying in 1 second' );
+
+		setTimeout ( function () {
+			that.reconnect ();
+		}, 1000 );
+	} else {
+		console.log ( that.name, 'Closed by remote' );
+		
+		this.close();
+	}
+}
+
+Connection.prototype.onData = function ( value, path )
+{
+	if ( !this._pushData )
+		this._pushData = {};
+	
+	this._pushData[path] = value;
+
+	// Should delay push here
+	this._push();
+}
+
+Connection.prototype.onRemoteData = function ( msg ) {
+
+	if ( this.debug ) {
+		console.log ( this.name, "RECV", msg );
+	}
+
+	if ( 'string' == typeof msg ) {
+		try {
+			msg = JSON.parse ( msg );
+		} catch ( e ) {
+			console.log ( this.name, 'Bad JSON from remote' );
+			return;
+		}
+	}
+
+			
+	if ( msg.set ) {
+		var set = {};
+		//console.log ( 'msg.set '+JSON.stringify ( msg.set ) );
+		
+		for ( var remotePath in msg.set ) {
+			
+			var value = msg.set[remotePath];
+
+			this.set ( value, remotePath );
+		}
+		
+		//console.log ( "GOT MESG set", set );
+
+	}
+	
+	if ( msg.get ) {
+		this.push( msg.get );
+	}
+}
+
+/** Close the connection with no hope of reopening */
+Connection.prototype.close = function ()
+{
+	this.remove();
+	this.keepAlive = false;
+	
+	if ( 'function' == typeof this._close ) {
+		this._close();
+	}
+};
+
+
+//
+//	Various things to attach.
+//
+
+Connection.prototype.attachWebSocket = function ( websocket ) {
 	var that = this;
 	
 	websocket.onopen = function () 
@@ -1824,14 +1898,13 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	
 	websocket.onmessage = function ( msg )
 	{
-		//console.log ( that.name, 'onmessage', msg.data );
 		that.onRemoteData ( msg.data );		
 	};
 	
 	websocket.onclose = function ()
 	{
 		//console.log ( that.name, "onclose" );
-		that.onremoteclose ();
+		that.onRemoteClose ();
 	};	
 
 	this.readyToSend = function () {
@@ -1841,6 +1914,7 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	this.send = function ( msg ) {
 		if ( websocket.readyState != 1 ) 
 			return false;
+
 
 		msg = JSON.stringify ( msg );
 		websocket.send ( msg );
@@ -1858,212 +1932,820 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	}
 }
 
-/**
- * 
- */
-HortenWebSocket.prototype.attachWebSocketNodeClient = function ( client ) {
-	var that = this;
-
-	client.on('connectFailed', function ( error ) {
-		console.log ( that.name, 'Connecting failed' );
-		that.onremoteclose ()
-	});
-
-	client.on('connect', function ( conn ) {
-		console.log ( that.name, 'Connected ' );
-		that.wsn = conn;
-
-		conn.on('close', function () {
-			that.onremoteclose ();
-		});
-
-		conn.on('message', function ( message ) {
-			if ( message.type != 'utf8' ) {
-				console.log ( that.name, 'Not UTF8 from remote' );
-				return;
-			}
-			that.onRemoteData ( message.utf8Data );
-		});
-
-		that._push ();
-		that._pull ();
-	});
-
-	this.readyToSend = function () {
-		return that.wsn && that.wsn.connected;
+Connection.prototype.attachSockJSClient = function ( sock, remotePath, config ) {
+	that = this;
+	that.sockJS = sock;
+	remotePath = Path ( remotePath ).string;
+		
+	sock.onopen = function () {
+		sock.send ( JSON.stringify ( {
+			path: remotePath
+		}))
 	}
 
-	this.send = function ( msg ) {
-		if ( !that.wsn || !that.wsn.connected )
-			return false;
+	sock.onmessage = function ( msg ) {
+		try {
+			msg = JSON.parse ( msg.data );
+		} catch ( e ) {
+			console.log ( that.name, "Bad JSON in server path response", msg );
+			sock.close();
+			that.onRemoteClose ()
+			return;
+		}
 
-		that.wsn.sendUTF ( JSON.stringify ( msg ) );
-		return true;
+		if ( msg ) {
+			that.attachWebSocket ( sock );
+			that.onRemoteData ( msg );
+		} else {
+			console.log ( that.name, "Didn't get path handshake from server" );
+			sock.close ();
+			that.onRemoteClose ();
+		}
+	}
+
+	sock.onclose = function () {
+		console.log ( that.name, "Didn't get path handshake from server" );
+		that.onRemoteClose ();
+	}
+
+	sock.onerror = function () {
+
 	}
 }
+Horten.Client = Client;
 
 
+var wsProtocol = 'horten-protocol';
 
-/** 
- * Connect to a remote WebSocket server at a given url.
- * 
- * @param url
- */
-Horten.WebSocketClient = HortenWebSocketClient;
-function HortenWebSocketClient ( url, config ) 
-{
-	var that = this;
-	HortenWebSocket.call( this, config );
 
-	that.name = url;
+function Client ( url, options, callback ) {
 
-	var client;
+	if ( this instanceof Client ) {
+		throw new Error ( "Not a constructor" );
+	}
 
-	if ( 'function' == typeof WebSocket ) {
-		this.reconnect = function () {
-			console.log ( "WebSocket connecting to", url );
-			client = new WebSocket ( url, 'horten-protocol' );
-			this.attachWebSocket ( client );
+	if ( !options )
+		options = {};
+
+	options.keepAlive = options.keepAlive !== false;
+	
+
+
+	var urlStr;
+
+	if ( 'string' == typeof url ) {
+		urlStr = url;
+		url = urlParse( url, true );
+	} else if ( Array.isArray ( url ) ) {
+		var client, i;
+		for ( i = 0; i < url.length && !client; i++ ) {
+			//try {
+				client = Client ( url[i], options, callback )
+			//} catch (e) {}
+
+			if ( client ) 
+				return client;
 		}
 
-	} else if ( 'function' == typeof WebSocketClient ) {
-		this.reconnect = function () {
-			client = new WebSocketClient ()
-			client.connect ( url, 'horten-protocol' );
-			this.attachWebSocketNodeClient ( client );
-		}
+		throw new Error ( 'No compatible connect method')
 
 	} else {
-		throw new Error ( 'No WebSocket library' );
+		throw new Error ( 'parameter unsupported');
 	}
 
-	this.primitive = true;
-	this.attach();
-	this.reconnect();
-	
+	console.log ( "TRYING CONNNECT", url );
+	var listener;
 
-}
+	if ( url.protocol == 'ws:' ) {
+		// Web Socket
+		listener = new Connection ( options )
 
-HortenWebSocketClient.prototype = new HortenWebSocket ( null );
+		listener.name = urlStr;
 
-/** 
- * Connect to a remote WebSocket server at a given url.
- * 
- * @param url
- */
-function HortenSockJSClient ( url, remotePath, config ) 
-{
-	var that = this;
-	HortenWebSocket.call( this, config );
+		var client;
 
-	
+		if ( 'function' == typeof require && 'undefined' != typeof exports ) {
+			var client;
 
-	remotePath = Path ( remotePath ).string;
-	that.name = url + '/'+remotePath;
+			listener.reconnect = function () {
 
-	this.reconnect = function () {
-		var sock = new SockJS ( url );
-		sock.onopen = function () {
-			sock.send ( JSON.stringify ( {
-				path: remotePath
-			}))
-		}
+				client = new (require('websocket').client);
 
-		sock.onmessage = function ( msg ) {
+				client.on('connectFailed', function ( error ) {
+					console.log ( listener.name, 'Connecting failed' );
+					listener.onRemoteClose ()
+				});
 
+				client.on('connect', function ( conn ) {
+					console.log ( listener.name, 'Connected ' );
+					listener.wsn = conn;
 
-			try {
-				msg = JSON.parse ( msg.data );
-			} catch ( e ) {
-				console.log ( that.name, "Bad JSON in server path response", msg );
-				sock.close();
-				that.onremoteclose ()
-				return;
+					conn.on('close', function () {
+						listener.onRemoteClose ();
+					});
+
+					conn.on('message', function ( message ) {
+						if ( message.type != 'utf8' ) {
+							console.log ( listener.name, 'Not UTF8 from remote' );
+							return false;
+						}
+						listener.onRemoteData ( message.utf8Data );
+					});
+
+					listener._push ();
+					listener._pull ();
+				});
+				client.connect ( urlStr, wsProtocol );
 			}
 
-			if ( msg.path == remotePath ) {
-				that.attachWebSocket ( sock );
-				console.log ( that.name, "Connected SockJS" );
-
-				that.onRemoteData ( msg );
-			} else {
-				console.log ( that.name, "Didn't get path handshake from server" );
-				sock.close ();
-				that.onremoteclose ();
+			listener.readyToSend = function () {
+				return listener.wsn && listener.wsn.connected;
 			}
+
+			listener.send = function ( msg ) {
+				if ( !listener.wsn || !listener.wsn.connected )
+					return false;
+
+				listener.wsn.sendUTF ( JSON.stringify ( msg ) );
+				return true;
+			}
+
+			
+
+
+		} else if ( 'function' == typeof WebSocket || 'object' == typeof WebSocket ) {
+			listener.reconnect = function () {
+				console.log ( "WebSocket connecting to", url );
+				client = new WebSocket ( urlStr, wsProtocol );
+
+				listener.attachWebSocket ( client );
+			}
+		} else {
+			//throw new Error ( 'No WebSocket library' );
+			return false;
 		}
 
-		sock.onclose = function () {
-			console.log ( that.name, "Didn't get path handshake from server" );
-			that.onremoteclose ();
+	} else
+	if ( url.protocol == 'sockjs:' ) {
+		if ( 'function' != typeof SockJS ) 
+			return undefined;
+
+		var sockUrl = "http://"+url.hostname;
+		if ( url.port ) 
+		    sockUrl += ':'+url.port;
+
+		sockUrl += url.pathname;
+
+		
+
+		listener = new Connection ( options );
+		listener.name = urlStr;
+
+		listener.reconnect = function () {
+			console.log ("SockJS Reconnect", sockUrl );
+			var sock = new SockJS ( sockUrl );
+			listener.attachSockJSClient ( sock, url.query.path );
 		}
+		
 	}
 
-	this.reconnect ();
 
-	this.attach ( );
+	if ( listener && listener.reconnect ) {
+		listener.pull ();
+		listener.reconnect();
+		listener.attach();
+
+		return listener;
+	}
+
+	return undefined;
 }
 
-HortenSockJSClient.prototype = new HortenWebSocket ( null );
 
-var WebSocketServer = require('websocket').server;
+
 var Http = require('http');
 var Https = require('https');
 var fs = require('fs');
 
+var extend = require('util')._extend;
+
 var Url = require('url');
+
+Horten.Server = function ( options ) {
+	var server = this;
+
+	options = options || {};
+
+
+	if ( options.url ) {
+		if ( 'string' == typeof options.url )
+			options.url = urlParse ( options.url );
+
+		options.port = options.url.port;
+		options.hostname = options.url.hostname;
+		options.prefix = options.prefix || options.url.pathname;
+	}
+
+
+
+	var prefix = options.prefix || '/';
+
+	if ( prefix.charAt(0) != '/' )
+		prefix = '/'+prefix;
+
+	if ( prefix.charAt(prefix.length-1) != '/' )
+		prefix += '/';
+
+	var horten = options.horten || Horten.instance();
+	server.log = horten.log;
+
+	options.path = Path( options.path );
+	var localPath = options.path;
+
+	server.url = {
+		hostname: options.hostname || 'localhost',
+		port: options.port || '',
+		pathname: prefix
+	};
+
+	this.clientJSUrl = Url.format ( extend ( { protocol: 'http', search: '?js' }, server.url ) );
+
+
+	
+
+	var listener = new Listener ( {
+		path: options.path,
+		horten: options.horten
+	} );
+
+	/* Default authorization function. */
+	var authorize = function ( request, callback ) {
+		//server.log ( "AUTH", request.HortenPath );
+		callback( true );
+	}
+
+	/* Clean up what comes back from user-supplied authorization
+	callbacks. */
+	function parseAuthReturn ( auth ) {
+		if ( !auth ) {
+			auth = {
+				'deny': true,
+				'setFlags': 0
+			};
+		}
+
+		return auth;
+	}
+
+	/* Build the client JS. */
+	var clientIncludes = {
+		'sockJS': options.minify ? '../ext/sockjs-0.3.min.js' : '../ext/sockjs-0.3.js', 
+		'horten': 'horten-client.js'
+	};
+
+	for ( var k in clientIncludes ) {
+		clientIncludes[k] = fs.readFileSync( 
+			require('path').join( __dirname, clientIncludes[k] ),
+			'utf8' 
+		);
+	}
+
+
+	function clientJS ( path, url ) {
+		var urls = [];
+		var options = {};
+		var ret = ';';
+
+		
+		var hostAndPrefix = server.url.hostname;
+		if ( server.url.port )
+			hostAndPrefix += ':'+server.url.port;
+
+		hostAndPrefix += prefix;
+
+		path = path.translate ( localPath );
+		path = path.string.substr( 1 );
+
+		urls.push( 'ws://' + hostAndPrefix + path );
+		urls.push( 'sockjs://' + hostAndPrefix + "__sockJS?path=/" + path );
+		urls.push( 'http://' + hostAndPrefix + path );
+
+		var name = 'HortenRemote',
+			funcName = "__Horten"+parseInt(Math.random()*10000000);
+
+		var js = ';';
+		js += "function "+funcName+"(){\n";
+		js += "\tvar client=H.Client("+JSON.stringify(urls)+","+JSON.stringify(options)+");\n";
+		//js += '\tclient.pull();\n';
+		//js += '\tconsole.log("CLIENT",client);';
+		js += name+'=client;\n';
+		js += '};\n';
+		js += "if(window.attachEvent){\n\twindow.attachEvent('onload',"+funcName+");\n";
+		js += "}else{\n\tif(window.onload){\n\t\tvar cur=window.onload,newonload=function(){\n\t\t\t";
+		js += "cur();\n\t\t\t"+funcName+"()\n;};window.onload=newonload;";
+		js += "}else{window.onload="+funcName+";};};";
+
+		return js;
+	}
+
+
+
+	function httpResponse ( req, res, path, auth ) 
+	{
+		var that = this;
+
+		//res.writeHead( "X-Poowered-By: Horten" );
+
+		if ( auth.deny ) {
+			res.writeHead ( auth.statusCode || 403, auth.statusText || 'Forbidden' );
+			res.end ();
+			return true;
+		}
+
+		var url = urlParse( req.url, true, true );
+		if ( url.query.js != undefined ) {
+			res.writeHead(200, {
+				"Content-Type": "text/javascript"
+			});
+			res.write ( clientIncludes.sockJS );
+			res.write ( clientIncludes.horten );
+			res.end( clientJS ( path, url ) );
+			return true;
+		}
+		
+
+		// Send horten a fake listener object so that there will
+		// be something to log in Horten.
+		var fakeListener = {
+			name: 'http('+req.connection.remoteAddress+')'
+		}
+		
+		var value;
+		switch ( req.method ) {
+			case 'POST':
+				// Here is top notch security!
+				if ( auth.readOnly ) {
+					res.writeHead ( 403, "Write disallowed" );
+					res.end ();
+					return true;
+				}
+
+				var json = '';
+				req.setEncoding('utf8');
+				req.on('data', function ( data ) {
+					json += data;
+				});
+				req.on('end', function ( ) {
+					try {
+						value = JSON.parse ( json );
+					} catch ( e ) {
+						res.writeHead( 400, "Invalid POST JSON" );
+						res.end ();
+						return;
+					}
+					
+					if ( path.set ( value, null, auth.setFlags, fakeListener ) ) {
+						res.writeHead( 205 );
+						res.end ();
+					} else {
+						res.writeHead( 204 );
+						res.end ();
+					}
+				});
+			break;
+
+
+			case 'GET':
+			default:
+				value = path.get ();
+
+				var body = value == null ? 'null' : JSON.stringify ( value, null, true );
+
+				res.writeHead(200, {
+					'Content-Length': body ? body.length : 0,
+					"Content-Type": "text/javascript"
+				});
+				res.end( body );
+			break;
+		}
+
+		return true;
+	}
+
+
+	//
+	//	Flash socket policy server
+	//
+
+	var flashPolicyServer;
+	this.listenFlashPolicy = function ( domains ) {
+
+		if ( flashPolicyServer ) {
+			throw new Error ( "Flash Policy server already open" );
+		}
+
+		if ( 'string' == typeof domains ) {
+			domains = [ domains ];
+		} else if ( !Array.isArray ( domains ) ) {
+			domains = [ options.hostname ]
+		}
+
+		if ( !server.url.port ) {
+			throw new Error ( "Port not specified" );
+		}
+
+		domains = domains.map( function ( domain ) { 
+			return '\t<allow-access-from domain="'+domain+'"" to-ports="'+server.url.port+'"/>\n'
+		});
+
+		var policy = '<?xml version="1.0"?>\n'
+			+ '<!DOCTYPE cross-domain-policy SYSTEM "http://www.macromedia.com/xml/dtds/cross-domain-policy.dtd">\n'+
+			+ '<cross-domain-policy>\n'+
+			+ domains.join('')
+			+ '</cross-domain-policy>';
+
+		try {
+			flashPolicyServer = require('net').createServer( function (socket) {
+				socket.write( policy );
+				socket.end();
+			});
+			flashPolicyServer.listen(843);
+		} catch ( e ) {
+			throw new Error ( "Couldn't listen to port 843 ( try sudo )" );
+		}
+	}
+
+	
+	function localPathFromRequest ( req ) {
+		var url = urlParse( req.url );
+		var path = url.pathname;
+
+		if ( !prefix )
+			return Path(path);
+
+		if ( path.substr( 0, prefix.length ) != prefix )
+			return false;
+
+		var ret = localPath.append ( path.substr( prefix.length ) ); 
+		
+		return ret;
+	}
+
+	//
+	//	Internal HTTP server.
+	//
+	var httpServer;
+	this.listenHttp = function ( onPort ) {
+		if ( httpServer ) {
+			throw new Error ( 'http server already open' );
+		}
+
+		httpServer = require('http').createServer();
+
+		httpServer.on('request', function ( req, res ) {
+			var path = localPathFromRequest ( req );
+
+			if ( !path )
+				return false;
+
+			req.HortenPath = path;
+
+			authorize( req, function ( auth ) {
+				httpResponse ( req, res, path, auth );
+			});
+		});
+
+		//this.listenToWebSocket( httpServer );
+		this.listenToUpgrade( httpServer );
+
+		// Figure out port.
+		if ( server.url.port && onPort && onPort != server.url.port ) {
+			throw new Error ( 'Mismatch between specified port and options.port' );
+		}
+
+		var port = onPort || server.url.port || ( !!options.https ? 443 : 80 );
+		if ( !server.url.port )
+			server.url.port = port;
+
+		server.log ( 'http', "listen", port );
+		httpServer.listen ( port );
+
+		return httpServer;
+	}
+
+	this.listenHttps = function ( options ) {
+		
+	}
+
+	this.listenHSS = function ( port ) {
+		var server = require('net').createServer( function (socket) {
+			console.log ( "Connected" );
+
+			socket.on('end', function () {
+				listener.remove();
+				console.log ( "Disconnected" );
+			});
+
+			var listener = new Connection ( {
+				path: options.path
+			});
+			listener.attach_hss ( socket );
+			
+			//socket.end();
+		});
+
+		server.listen( port );
+	}
+
+	var sockJS;
+
+	function getSockJS (  )
+	{
+		if ( sockJS )
+			return sockJS;
+
+
+		var sockJSPrefix = '__sockJS';
+		var server = require('sockjs').createServer({ prefix: prefix+sockJSPrefix });
+		var middleware = server.middleware (  );
+
+		sockJS = {
+			server: server,
+			prefix: sockJSPrefix,
+			middleware: middleware
+		};
+
+		server.on('connection', function ( sockJSConn ) {
+			console.log ( "Waiting for guffman", sockJSConn );
+			var listener = new Connection ( {
+				attach: false
+			});
+			listener.waitForSockJSToSendPath ( sockJSConn, function ( path ) {
+
+				var req = {
+					path: path,
+					debug: true
+				};
+
+				authorize ( req, function ( auth ) {
+
+					if ( auth.deny ) {
+						sockJSConn.close();
+						return;
+					}
+
+					console.log ( "Sock authorized" );
+					var handshake = {
+						'hello': true
+					};
+					sockJSConn.write( JSON.stringify ( handshake ) );
+
+					listener.setPath( path );
+					listener.attachSockJSServer ( sockJSConn );
+				} );
+			} );
+		});
+
+		return sockJS;
+	}
+
+
+	/*
+		Dead code for connection with Worlize/websocket-node, which is
+		nice and all, but einaros/ws is looser and more flexible.
+	*/
+	this.listenToWebSocket = function ( httpServer ) {
+		var wsServer = new (require('websocket').server) ( {
+			httpServer: httpServer
+		});
+		wsServer.on('request', function ( req ) {
+			var path = localPathFromRequest( req.httpRequest );
+			if ( !path ) {
+				req.reject();
+				log( 'websocket', req.origin, "Rejected ( No Path )" );
+				return;
+			}
+			// Fill in req with all the variables it expects.
+			req.HortenPath = path;
+
+			authorize ( req, function ( auth ) {
+				if ( !auth || auth.deny ) {
+					req.reject()
+					log( 'websocket', "Rejected", req.origin, auth );
+					return;
+				}
+
+				var websocket = req.accept( );
+
+				var connection = new Connection ( {
+					path: path
+				});
+				connection.name = "websocket("+req.origin+")";
+				connection.attach_websocket ( websocket );
+				connection.log = log;
+			});
+
+		} );
+
+		
+	}
+
+	this.listenToUpgrade = function ( httpServer, allowMultiple ) {
+
+		var wsServer = new (require('ws').Server) ( {
+			noServer: true
+		});
+
+		function abortConnection(socket, code, name) {
+			try {
+				var response = [
+					'HTTP/1.1 ' + code + ' ' + name,
+					'Content-type: text/html'
+				];
+				socket.write(response.concat('', '').join('\r\n'));
+			}
+			catch (e) { /* ignore errors - we've aborted this connection */ }
+			finally {
+				// ensure that an early aborted connection is shut down completely
+				try { socket.destroy(); } catch (e) {}
+			}
+		}
+
+		httpServer.on('upgrade', function ( req, socket, upgradeHead ) {
+			path = localPathFromRequest( req );
+			
+			if ( !path ) { 
+				// The request does not start with prefix, so is none of our 
+				// business. By default, drop it. If `allowMultiple` is specified,
+				// don't do anything so the next on('upgrade') can handle it.
+				// Note that if nothing else is listening to `upgrade`, the
+				// connection will hang, which ain't good.
+
+				if ( allowMultiple )
+					return;
+
+				// Kill the request.
+				abortConnection( socket, 404, 'Not Found' );
+				return;
+			}
+
+			// Fill in req with all the variables it expects.
+			req.HortenPath = path;
+
+			authorize ( req, function ( auth ) {
+				auth = parseAuthReturn( auth );
+
+				if ( auth.deny ) {
+					abortConnection( socket, auth.statusCode || 403, auth.statusText || 'Forbidden' );
+					return;
+				}
+
+				wsServer.handleUpgrade( req, socket, upgradeHead, function ( wsConnection ) {
+					var connection = new Connection ( {
+						path: path
+					});
+					connection.name = "ws("+socket.remoteAddress+")";
+
+					connection.attach_ws ( wsConnection );
+				} );
+			});
+		});
+	}
+
+
+
+
+	this.middleware = function ( ) {
+		getSockJS();
+		var middleware = function( req, res, next ) {
+			path = localPathFromRequest( req );
+			
+			if ( !path ) { 
+				next(); 
+				return;
+			}
+
+			if ( sockJS && path.startsWith ( sockJS.prefix ) ) {
+				console.log("SockJS returning middleware" );
+				return sockJS.middleware.apply( this, arguments );
+			}
+
+			req.HortenPath = path;
+
+			authorize( req, function ( auth ) {
+				httpResponse ( req, res, path, auth );
+			});
+		};
+
+		middleware.upgrade = function ( req, res, upgradeHead )
+		{
+			console.log('got upgrade');
+		}
+		
+		return middleware;
+	}
+
+	this.close = function () {
+		if ( flashPolicyServer ) {
+			flashPolicyServer.close();
+			flashPolicyServer = null;
+		}
+
+
+	}
+
+	return server;
+
+
+}
+
+
+
+/*
+	Dead code for connection with Worlize/websocket-node, which is
+	nice and all, but einaros/ws is looser and more flexible.
+*/
+/*
+Connection.prototype.attach_websocket = function ( websocket ) 
+{
+	var connection = this;
+
+	connection.websocket = websocket;
+
+	websocket.on('message', function(message) {
+		connection.onRemoteData ( message.utf8Data );
+	});
+	
+	websocket.on('close', function () {
+		if ( connection.log )
+			connection.log( connection.name, 'closed');
+
+		connection.onRemoteClose ();
+	});
+
+	this.readyToSend = function () {
+		return websocket;
+	}
+
+	this.send = function ( msg ) {
+		if ( !websocket )
+			return false;
+
+		msg = JSON.stringify ( msg );
+		websocket.sendUTF ( msg );
+		return true;
+	}
+
+	this._close = function () {
+		websocket.close ();
+		websocket = null;
+	}
+
+
+	this.attach ();
+}
+*/
 
 
 /**
  * Accept a connection for a remote WebSocket Client.
  * @param connection
  */
-HortenWebSocketServer = function ( request, subPath, config, auth ) 
+Connection.prototype.attach_ws = function ( connection ) 
 {
 	var that = this;
 
-	var connection = request.accept('horten-protocol', request.origin );
-
-	HortenWebSocket.call ( this, config );
-
 	this.wsn = connection;
-	
-	if ( subPath )
-		this.path = Path ( Path ( this.path ) + Path ( subPath ) );
 
-	this.name = 'ws://'+connection.remoteAddress;
-		
-	connection.on('error', function (error) {
-		console.log ( "Connection error " +JSON.stringify(error) );
-	});
-		
+	//console.log ( connection );
+
 	connection.on('message', function(message) {
-		if ( message.type != 'utf8' ) {
-			console.log ( that.name, 'Not UTF8 from remote' );
-			return;
-		}
-		that.onRemoteData ( message.utf8Data );
-    });
+		that.onRemoteData ( message );
+	});
 	
 	connection.on('close', function () {
-		console.log ( that.name, 'Closed incoming connection' );
-		that.close ();
+		that.onRemoteClose ();
 	});
 
 	this.readyToSend = function () {
-		return that.wsn && that.wsn.connected;
+		return connection;
 	}
 
 	this.send = function ( msg ) {
-		if ( !that.wsn || !that.wsn.connected )
+		if ( !connection )
 			return false;
 
-		that.wsn.sendUTF ( JSON.stringify ( msg ) );
+		msg = JSON.stringify ( msg );
+		if ( that.debug )
+			console.log ( that.name, "SEND", msg );
+
+		connection.send ( msg );
 		return true;
 	}
 
 	this._close = function () {
 		connection.close ();
+		connection = null;
 	}
 
 
@@ -2071,372 +2753,129 @@ HortenWebSocketServer = function ( request, subPath, config, auth )
 	console.log ( that.name, 'Accepted connection' );
 }
 
-HortenWebSocketServer.prototype = new HortenWebSocket ( null );
 
 
-HortenSockJSServer = function ( conn, subPath, config, auth ) 
+Connection.prototype.waitForSockJSToSendPath = function ( conn, callback )
+{
+
+	var that = this,
+	timeOut = setTimeout ( this._close, 2000 );
+
+	this._close = function () {
+		console.log ( this.name, 'Closed SockJS before getting path' );
+		conn.close ();
+	}
+
+	conn.once('data',function ( msg ) {
+		console.log ( "SOCK initial", msg );
+		try {
+			msg = JSON.parse ( msg );
+		} catch ( e ) {
+			that._close();
+			return;
+		}
+
+		if ( !msg.path ) {
+			console.log( "Didn't get path from remote" );
+			that._close();
+		}
+
+		var path = Path( msg.path );
+
+		console.log ( "SOCK path", path );
+		callback ( path );
+
+	});
+}
+
+
+Connection.prototype.attachSockJSServer = function ( connection ) 
 {
 	var that = this;
 
-	HortenWebSocket.call ( this, config );
+	this.wsn = connection;
 
-	if ( subPath )
-		this.path = Path ( this.path + subPath );
+	//console.log ( connection );
 
-	this.name = 'sjs://'+conn.remoteAddress;
-
-	console.log ( that.name, "Connected initial");
-
-	conn.on('data', function ( message ) {
+	connection.on('data', function(message) {
 		that.onRemoteData ( message );
-	} )
-
-	conn.on('close', function ( ) {
-		that.onremoteclose();
-	} );
+	});
+	
+	connection.on('close', function () {
+		console.log ( that.name, 'Closed incoming connection' );
+		that.onRemoteClose ();
+	});
 
 	this.readyToSend = function () {
-		return conn.readyState == 1;
+		return connection;
 	}
 
 	this.send = function ( msg ) {
-		if ( conn.readyState != 1 ) 
+		if ( !connection )
 			return false;
 
-		conn.write ( JSON.stringify ( msg ) );
+		msg = JSON.stringify ( msg );
+		if ( that.debug )
+			console.log ( that.name, "SEND", msg );
+
+		connection.write ( msg );
+		return true;
+	}
+
+	this._close = function () {
+		connection.close ();
+		connection = null;
+	}
+
+
+	this.attach ();
+	console.log ( that.name, 'Accepted SockJS connection' );
+}
+
+/**
+ * Accept a connection for a remote WebSocket Client.
+ * @param connection
+ */
+Connection.prototype.attach_hss = function ( socket ) 
+{
+	var that = this;
+
+	that.hssSocket = socket;
+	that.name = "hss:"+socket.remoteAddress;
+
+	
+	socket.on('end', function () {
+		that.onRemoteClose ();
+	});
+
+	this.readyToSend = function () {
+		return !!socket;
+	}
+
+	this.send = function ( msg ) {
+		console.log ( that.name, 'Writing hss' );
+		var content = new Buffer( JSON.stringify( msg ) );
+		var header = new Buffer( 4 );
+		header.writeUInt32BE( content.length, 0 );
+		socket.write( Buffer.concat( [ header, content ] ) );
 
 		return true;
 	}
 
+	this._close = function () {
+		socket.destroy();
+		socket = null;
+	}
+
+
 	this.attach ();
-	console.log ( that.name, 'Accepted connection' );
-}
+	console.log ( that.name, 'Accepted HSS connection' );
 
-HortenSockJSServer.prototype = new HortenWebSocket ( null );
-
-
-
-Horten.Server = HortenServer;
-function HortenServer ( config ) {
-
-	var that = this;
-
-	if ( 'string' == typeof config ) {
-		config = {
-			path: config
-		}
-	} else if ( !config ) {
-		config = {};
-	}
-
-	this.config = config;
-
-	if ( 'function' == typeof config.auth )
-		this.authRequest = config.auth;
-
-	// Create a default listener, to take care of path translations and
-	// default horten
-	this.listener = new Listener ( config );
-	
-	this.horten = this.listener.horten;
-	this.listener.remove();
-	
-
-	var port = this.port = parseInt( config.port ) || 8000;
-
-	//
-	//	
-	//
-	var connectOpts = {};
-	var hostname = config.hostname || '127.0.0.1';
-
-
-
-
-	//
-	//	
-	//
-	var createHttpServer = function ( port ) {
-		var server = config.https ? Https.createServer : Http.createServer;
-		// Create HTTP server
-		var server = server ( function(request, response) {
-			that.authRequest ( request, function ( auth ) {
-				that.processHttpRequest ( request, response, auth ); 
-			} );
-		});
-
-		server.listen ( port );
-
-		return server;
-	}
-
-	that.httpServer = createHttpServer( port );
-
-	connectOpts.http = Url.format( {
-		protocol: 	'http', 
-		hostname: 	hostname,
-		port: 		port
-	} );
-
-	var jsFiles = [	]
-
-	if ( config.sockJS ) {
-		jsFiles.push( 'ext/sockjs-0.3.min.js' );	
-		that.sockJSServer = createHttpServer( config.sockJSPort );
-
-		that.sockJSPrefix = config.sockJSPrefix || '__sockJS';
-
-		if ( '/' != that.sockJSPrefix.substr ( 0, 1 ) )
-			that.sockJSPrefix = '/' + that.sockJSPrefix;
-
-
-		var sockjs = require ( 'sockjs' ).createServer();
-		sockjs.on('connection', function ( conn ) {
-			var onInitalData = function ( data ) {
-				try {
-					data = JSON.parse ( data );
-				} catch ( e ){
-					console.log ( 'sjs://'+conn.remoteAddress, 'Bad JSON in path setting' );
-					conn.close ( 400, 'Bad JSON in path setting' );
-				}
-
-				if ( data.path ) {
-					that.authRequest ( {
-						remoteAddress: conn.remoteAddress,
-						headers: conn.headers,
-						path: data.path
-					}, 
-					function ( auth ) {
-						if ( !auth ) {
-							console.log ( 'Rejected SockJS request' );
-							conn.close ( 403, 'Not authorized' );
-							return;
-						}
-						conn.write ( JSON.stringify ( {'path': data.path }));
-						var listener = new HortenSockJSServer ( conn, data.path, that.config, auth );
-					})
-				} else {
-					console.log ( 'sjs://'+conn.remoteAddress, "Didn't send path", data );
-					conn.close ( 400, 'Must send path' );
-				}
-			};
-			conn.once( 'data', onInitalData );
-		});
-
-		sockjs.installHandlers( that.sockJSServer, {prefix:that.sockJSPrefix});
-
-		connectOpts.SockJS = Url.format( {
-			protocol: 	'http', 
-			hostname: 	hostname,
-			port: 		config.sockJSPort ,
-			pathname: 	that.sockJSPrefix,
-		} );
-
-
-	} 
-
-
-	if ( config.websocket ) {
-
-		// Add WebSocket server
-		this.wsServer = new WebSocketServer({
-		    httpServer: this.httpServer
-		});
-
-		// WebSocket server
-		this.wsServer.on('request', function(req) {
-
-			if ( req.requestedProtocols.indexOf ( 'horten-protocol' ) == -1 ) {
-				console.log ( 'ws://'+req.remoteAddress, 'Rejected unknown websocket sub-protocol' );
-				req.reject ( 406, 'Improper sub-protocol');
-				return;
-			}
-
-			that.authRequest ( req.httpRequest, function ( auth ) {
-				if ( !auth ) {
-					console.log ( 'ws://'+req.remoteAddress, 'Rejected websocket request' );
-					req.reject ();
-					return;
-				}
-				var listener = new HortenWebSocketServer ( req, req.httpRequest.url, that.config, auth );
-			} );
-		});
-
-		connectOpts.WebSocket = Url.format( {
-			protocol: 	'ws', 
-			slashes: 	true, 
-			hostname: 	hostname,
-			port: 		port,
-			pathname:   '/', 
-		} );
-	}
-
-
-	//
-	//	Build magic JS
-	//
-
-
-
-
-	jsFiles.push( 'horten-client.js' );
-
-	//console.log( Path.join( __dirname, 'ext/sockjs-0.3.min.js') );
-
-	this.clientJSIncludes = '';
-
-	for ( var i = 0; i < jsFiles.length; i++ ) {
-		var jsFile = jsFiles[i];
-		this.clientJSIncludes += fs.readFileSync( require('path').join( __dirname, jsFile ), 'utf8' );
-	}
-
-	
-
-	this.clientJS = function ( path ) {
-		path = Path ( path ).string.substr ( 1 );
-
-		var opts = {
-			path:path
-		};
-
-		opts.keepAlive = true;
-
-		for ( var k in connectOpts ) {
-			var url = Url.parse ( connectOpts[k] );
-
-			if ( k != 'SockJS' )
-				url.pathname += path;
-
-			opts[k] = Url.format( url );
-		}
-
-		var js = 	"function __hortenConnect () { "+
-					"HortenRemote=H.WebSocket.connect(" +JSON.stringify( opts )+");"+
-					"if ( HortenRemote ) { HortenRemote.attach();HortenRemote.pull(); };" +
-					"}" +
-					"if(window.attachEvent){window.attachEvent('onload', __hortenConnect );"+
-					"} else { if(window.onload) { var curronload = window.onload; var newonload = function() {"+
-					"curronload(); __hortenConnect(); }; window.onload = newonload;"+
-    				"} else { window.onload = __hortenConnect; } }"
-
-		return js
-	}
-	
+	this.push();
 }
 
 
 
-
-HortenServer.prototype.authRequest = function ( request, callback ) {
-
-	//console.log ( "AUTH", request );
-
-	callback ( {} );
-}
-
-
-/** 
- * Response to an HTTP request. 
- * 
- * @param {ServerRequest} req  The http request
- * @param {ServerResponse} res The http response
- * @param {Boolean} auth Whether an actual response is authorized
- */
-HortenServer.prototype.processHttpRequest = function ( req, res, auth ) 
-{
-	var that = this;
-
-	if ( !auth ) {
-		res.writeHead ( 403, "Not allowed" );
-		res.end ();
-	}
-
-	var url  = req.url;
-	url = Url.parse( url, true );
-
-	var path = Path( url.pathname );
-
-	if ( url.query.js != undefined && that.clientJS ) {
-
-
-		res.writeHead(200, {
-			"Content-Type": "text/javascript"
-		});
-		res.write ( that.clientJSIncludes );
-
-		res.end( that.clientJS ( path ) );
-		return;
-	}
-
-	path = that.listener.localToGlobalPath ( path );
-
-
-	// Send horten a fake listener object so that there will
-	// be something to log in Horten.
-	var fakeListener = {
-		name: 'http('+req.connection.remoteAddress+')'
-	}
-	
-	var value;
-	switch ( req.method ) {
-		case 'POST':
-			// Here is top notch security!
-			if ( auth.readOnly ) {
-				res.writeHead ( 403, "Write disallowed" );
-				res.end ();
-				return;
-			}
-
-			var json = '';
-			req.setEncoding('utf8');
-			req.on('data', function ( data ) {
-				json += data;
-			});
-			req.on('end', function ( ) {
-				try {
-					value = JSON.parse ( json );
-				} catch ( e ) {
-					res.writeHead( 400, "Invalid POST JSON" );
-					res.end ();
-					return;
-				}
-				
-				if ( that.horten.set ( value, path, fakeListener ) ) {
-					res.writeHead( 205 );
-					res.end ();
-				} else {
-					res.writeHead( 204 );
-					res.end ();
-				}
-			});
-		break;
-
-
-		case 'GET':
-		default:
-			value = that.horten.get ( path );
-			var body = value == null ? 'null' : JSON.stringify ( value, null, true );
-
-			res.writeHead(200, {
-			  'Content-Length': body ? body.length : 0,
-			  "Content-Type": "text/javascript"
-			});
-			res.end( body );
-		break;
-	}
-}
-
-HortenServer.prototype.close = function ()
-{
-	if ( this.httpServer ) {
-		this.httpServer.close ();
-	}
-}
-
-
-
-
-exports.server = HortenServer;
 var osc = require ( 'node-osc' );
 
 Horten.OSC = HortenOSC;
@@ -2454,8 +2893,12 @@ function HortenOSC ( config ) {
 	this.autoClient = parseInt( config.autoClient );
 	this.treatAsArray = config.treatAsArray;
 	
-	if ( config.server && config.server.host && config.server.port ) { 
+	if ( config.server && config.server.port ) { 
+		if ( !config.server.host )
+			config.server.host = "localhost";
+
 		this.name = 'osc://:'+config.server.port;
+		console.log ( "listening to osc", config.server.port );
 
 		this.server = new osc.Server ( config.server.port, config.server.host );
 		this.server.on ( "message", function ( decoded, rinfo ) {

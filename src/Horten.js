@@ -86,7 +86,8 @@ Horten.prototype.get = function ( path, original ) {
 Horten.setFlags = {
 	keepTopology: 	2,
 	forceListeners: 4,
-	replace:		8
+	replace:		8,
+	readOnly: 		16 
 }
 
 
@@ -402,21 +403,6 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	}
 }
 
-
-//	---------
-//	Listening
-//	---------
-
-Horten.prototype.listen = function ( path, callback ) 
-{
-	
-}
-
-Horten.prototype.listenPrimitive = function ( path, callback )
-{
-
-}
-
 //	--------------------
 //	Orthogonal Convience
 //	--------------------
@@ -458,6 +444,12 @@ Horten.prototype.getMeta = function ( path, create )
 	}		
 	
 	return m;
+}
+
+Horten.prototype.log = function ()
+{
+	var args = Array.prototype.slice.call( arguments );
+	console.log ( args.map( String ).join('\t') );
 }
 
 //	---------

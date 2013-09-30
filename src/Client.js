@@ -1,23 +1,50 @@
-Horten.client = Client;
+Horten.Client = Client;
 
 
 var wsProtocol = 'horten-protocol';
 
 
 function Client ( url, options, callback ) {
+
+	if ( this instanceof Client ) {
+		throw new Error ( "Not a constructor" );
+	}
+
+	if ( !options )
+		options = {};
+
+	options.keepAlive = options.keepAlive !== false;
+	
+
+
 	var urlStr;
 
 	if ( 'string' == typeof url ) {
 		urlStr = url;
-		url = require('url').parse( url );
+		url = urlParse( url, true );
+	} else if ( Array.isArray ( url ) ) {
+		var client, i;
+		for ( i = 0; i < url.length && !client; i++ ) {
+			//try {
+				client = Client ( url[i], options, callback )
+			//} catch (e) {}
+
+			if ( client ) 
+				return client;
+		}
+
+		throw new Error ( 'No compatible connect method')
+
 	} else {
-		throw new Error ( 'parameter currently un-supported');
+		throw new Error ( 'parameter unsupported');
 	}
 
+	console.log ( "TRYING CONNNECT", url );
+	var listener;
 
 	if ( url.protocol == 'ws:' ) {
 		// Web Socket
-		var listener = new HortenWebSocket ()
+		listener = new Connection ( options )
 
 		listener.name = urlStr;
 
@@ -32,7 +59,7 @@ function Client ( url, options, callback ) {
 
 				client.on('connectFailed', function ( error ) {
 					console.log ( listener.name, 'Connecting failed' );
-					listener.onremoteclose ()
+					listener.onRemoteClose ()
 				});
 
 				client.on('connect', function ( conn ) {
@@ -40,13 +67,13 @@ function Client ( url, options, callback ) {
 					listener.wsn = conn;
 
 					conn.on('close', function () {
-						listener.onremoteclose ();
+						listener.onRemoteClose ();
 					});
 
 					conn.on('message', function ( message ) {
 						if ( message.type != 'utf8' ) {
 							console.log ( listener.name, 'Not UTF8 from remote' );
-							return;
+							return false;
 						}
 						listener.onRemoteData ( message.utf8Data );
 					});
@@ -72,30 +99,52 @@ function Client ( url, options, callback ) {
 			
 
 
-		} else if ( 'function' == typeof WebSocket ) {
+		} else if ( 'function' == typeof WebSocket || 'object' == typeof WebSocket ) {
 			listener.reconnect = function () {
 				console.log ( "WebSocket connecting to", url );
-				client = new WebSocket ( url, wsProtocol );
+				client = new WebSocket ( urlStr, wsProtocol );
+
 				listener.attachWebSocket ( client );
 			}
-
-		} else if ( 'function' == typeof WebSocketClient ) {
-			
-
 		} else {
-			throw new Error ( 'No WebSocket library' );
+			//throw new Error ( 'No WebSocket library' );
+			return false;
 		}
 
-		listener.primitive = true;
+	} else
+	if ( url.protocol == 'sockjs:' ) {
+		if ( 'function' != typeof SockJS ) 
+			return undefined;
+
+		var sockUrl = "http://"+url.hostname;
+		if ( url.port ) 
+		    sockUrl += ':'+url.port;
+
+		sockUrl += url.pathname;
+
 		
-		listener.keepAlive = true;
 
+		listener = new Connection ( options );
+		listener.name = urlStr;
+
+		listener.reconnect = function () {
+			console.log ("SockJS Reconnect", sockUrl );
+			var sock = new SockJS ( sockUrl );
+			listener.attachSockJSClient ( sock, url.query.path );
+		}
+		
+	}
+
+
+	if ( listener && listener.reconnect ) {
 		listener.pull ();
-
 		listener.reconnect();
 		listener.attach();
 
-		
-
+		return listener;
 	}
+
+	return undefined;
 }
+
+

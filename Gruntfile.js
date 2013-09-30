@@ -22,22 +22,25 @@ module.exports = function(grunt) {
 		].join(''),
 
 		sources : [
+			'src/utils-node.js',
 			'src/Path.js',
 			'src/Horten.js',
 			'src/Listener.js',
 			'src/MySQL.js',
-			'src/WebSocket.js',
+			'src/Connection.js',
 			'src/Client.js',
 			'src/Server.js',
 			'src/OSC.js',
 			'src/export.js',
 		],
 		clientSources : [
+			'src/utils-browser.js',
 			'src/intro.js',
 			'src/Path.js',
 			'src/Horten.js',
 			'src/Listener.js',
-			'src/WebSocket.js',
+			'src/Connection.js',
+			'src/Client.js',
 			'src/outro.js'
 		],
 

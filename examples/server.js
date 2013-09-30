@@ -8,9 +8,6 @@ var H = require('horten');
 		http://example.com:1337
 		ws://example.com:1337
 
-	It will also open a seperate server for use by SockJS, living on
-	port 1338. Yes, this is a silly way of doing things.
-
 	The best way to use Horten in web based systems is to add the
 	following script to your page / app / whatever:
 
@@ -38,10 +35,8 @@ var H = require('horten');
 
 		https://github.com/koopero/horten/blob/master/README.md#warning
 
-	All this gonna change. 
-
 */
-var server = new H.Server ( {
+var HServer = new H.Server ( {
 
 	// If you would like, you can set the server to live under a 
 	// specific Path. Otherwise the default will be to share everything. 
@@ -56,33 +51,42 @@ var server = new H.Server ( {
 	websocket: true,
 
 	// Specify the port to open for http and WebSocket.
-
-	// It's unfortune that right now, Horten doesn't play nicely with any
-	// other frameworks. For now, it's best to let it run on its own port.
 	port: 1337,
-
-	// SockJS ain't pretty, but it works pretty good.
-	// Unfortunately, right now it needs to be on another port.
-	// If the client supports is, Horten's own Websocket class
-	// will be used instead.
-	sockJSPort: 1338,
 
 	// And now we come to security. Admittedly, this is a bit of a joke
 	// right now, but it might block something.
-	authRequest: function ( request, callback ) {
-		// request is currently passed from the http req
-		// that Horten will respond to. This may change.
+	authorize: function ( request, callback ) {
+		// `request` is passed from the http req
+		// that Horten will respond to. `request.path` will
+		// be a `Path` of the local path of the request.
 
-		// Also, in the future, you'll be able to pass
-		// an H.setFlags mask. 
+		// To allow everything, call:
+		callback ( true );
 
-		// For now, this to allow.
-		callback ( {} );
+		// End of executable example.
+		return;
 
-		// This to deny.
-		// callback ( false );
+		// To deny completely, use this instead:
+		callback ( false );
 
-		// Hopefully. 
+		// You can also return a bitmask from `H.setFlags`.
+
+		/* 
+			readOnly will disallow any writing to data.
+		*/
+		callback ( H.setFlags.readOnly );
+
+		/* 
+			keepTopology will only allow clients to change the values of
+			Horten data, disallowing any change to the topology of data.
+			
+			If your application has a universe of a pre-determined size,
+			and all Paths have been set, use this to disallow clients from
+			creating any new Paths.
+		*/
+		callback ( H.setFlags.keepTopology );		
 	}
-} );
+});
+
+
 

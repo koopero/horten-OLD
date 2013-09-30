@@ -1,4 +1,4 @@
-HortenMySQL.prototype = new Horten.Listener ( false );
+HortenMySQL.prototype = new Listener ( false );
 HortenMySQL.prototype.contructor = HortenMySQL;
 
 /**
@@ -27,21 +27,38 @@ HortenMySQL.prototype.contructor = HortenMySQL;
 
 function HortenMySQL ( config ) {
 
-	if ( config.history ) {
-		if ( config.timeOffset )
-			this.timeOffset = -Date.parse ( config.timeOffset );
-		else
-			this.timeOffset = 0;
+	if ( 'string' == typeof config.connection ) {
+		var u = urlParse( config.connection );
+		var userPass = String(u.auth).split(':');
+		var urlPath = u.pathname.substr(1).split('/');
 
-		if ( config.timeQuant )
-			this.timeQuant = parseFloat ( config.quantizeTime );
-		else
-			this.timeQuant = 1000;
+		if ( urlPath.length != 2 )
+			throw new Error ( 'connection url must be in form mysql://user:pass@hostname/database/table' );
 
-		this.history = true;
-	} else {
-		this.history = false;
+		config.connection = {
+			host: u.hostname,
+			user: userPass[0],
+			port: u.port || 3306,
+			password: userPass[1],
+			database: urlPath[0]
+		};
+
+		config.table = config.table || urlPath[ 1 ];
 	}
+
+
+	if ( config.timeOffset )
+		this.timeOffset = -Date.parse ( config.timeOffset );
+	else
+		this.timeOffset = 0;
+
+	if ( config.timeQuant )
+		this.timeQuant = parseFloat ( config.quantizeTime );
+	else
+		this.timeQuant = 1000;
+
+
+	this.history = !!config.history;
 
 	// Questionable magic number
 	this.pathLength = parseInt ( config.pathLength ) || 640;
@@ -163,21 +180,19 @@ function HortenMySQL ( config ) {
 	//	Initialize Connection
 	//
 	function connect ( connection ) {
-		var connection;
 
-		if ( 'object' != typeof config.connection || config.connection == null ) {
+		if ( 'object' != typeof connection ) {
 			// Need something!
 			throw 'Connection details not specified';
-		} else if ( config.connection._protocol ) {
+		} else if ( connection._protocol ) {
 			// A flaky way of determining if the connection passed in config
 			// is a real connection, as oppose to the configuration for one.
-			connection = config.connection
 		} else {
 			connection = require ( 'mysql' ).createConnection ( connection );
 		}
 
 		connection.on('error', function ( err ) {
-			console.log ( that.name, 'Mysql Error', JSON.stringify ( err ) );
+			that.horten.log ( that.name, 'error', JSON.stringify ( err.code ) );
 		});
 
 		connection.on('close', function ( err ) {
@@ -196,7 +211,6 @@ function HortenMySQL ( config ) {
 				that.connected = true;
 				that.flush();
 			} else {
-				console.log ( "BAD CONNECTION!", err );
 				// Handle bad connection here!
 			}
 		});
@@ -222,8 +236,8 @@ function HortenMySQL ( config ) {
 		this.query ( sql, 
 			function ( err, result ) {
 				if ( err ) {
-					console.log ( err );
-					throw 'SQL error creating tables.';
+					that.horten.log( that.name, "Error creating table" );
+					throw 'SQL Error';
 				}
 			}
 		);
@@ -390,6 +404,8 @@ HortenMySQL.prototype.getPathId = function ( path )
 
 HortenMySQL.prototype.onData = function ( value, path, method, origin )
 {
+	//console.log ( "MYSQL ONDATA", value, path, method, origin );
+
 	var time = this.escapeDate( new Date () );
 	
 	var out = [ path, value, time, method, origin ];
@@ -411,12 +427,12 @@ HortenMySQL.prototype.flush = function ( callback )
 		}
 
 		if ( 'function' == typeof callback ) {
-	 		process.nextTick ( function() {
+			process.nextTick ( function() {
 				callback ();
 			} );
-	 	}
+		}
 
-	 	return;
+		return;
 	} else if ( 'function' == typeof callback ) {
 		if ( !this._flushCallbacks )
 			this._flushCallbacks = [];
@@ -480,6 +496,9 @@ HortenMySQL.prototype.flush = function ( callback )
 				if ( c.time  )
 					set[c.time] = time;
 				
+				if ( 'object' == typeof origin )
+					origin = origin.name;
+
 				if ( origin && c.origin ) 
 					set[c.origin] = origin;
 				

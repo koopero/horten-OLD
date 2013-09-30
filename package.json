@@ -1,26 +1,32 @@
 {
   "name": "horten",
-  "description": "Experimental shared-state communication framework.",
+  "description": "Experimental shared-state communication framework. Speaks Javascript, MySQL, OSC and WebSocket.",
+  "keywords": [ "persistent", "real-time", "WebSocket", "OSC" ],
   "version": "0.3.0",
-  "homepage": "https://github.com/koop/horten",
+  "homepage": "https://github.com/koopero/horten",
   "author": {
     "name": "koopero",
     "email": "koopero@gmail.com"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/koop/horten.git"
+    "url": "git://github.com/koopero/horten.git"
   },
   "bugs": {
-    "url": "https://github.com/koop/horten/issues"
+    "url": "https://github.com/koopero/horten/issues"
   },
+
   "main": "dist/horten.js",
-  "keywords": [],
+  "bin": {
+    "horten-server": "bin/horten-server"
+  },
   "dependencies": {
-    "mysql": "2.0.0-alpha7",
-    "websocket":">=1.0.6",
-    "sockjs":">=0.3.4",
-    "node-osc":">=0.1.2"
+    "mysql":    "2.0.0-alpha7",
+    "ws":       ">=0.4.17",
+    "sockjs":   ">=0.3.4",
+    "connect":  ">=2.8.4",
+    "node-osc": ">=0.1.2",
+    "argparse": ">=0.1.15"
   },
   "devDependencies": {
     "grunt": "0.4.x",

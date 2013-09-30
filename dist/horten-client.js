@@ -1,10 +1,42 @@
 /**
- * horten v0.3.0 - 2013-05-29
- * Experimental shared-state communication framework.
+ * horten v0.3.0 - 2013-09-29
+ * Experimental shared-state communication framework. Speaks Javascript, MySQL, OSC and WebSocket.
  *
  * Copyright (c) 2013 koopero
  * Licensed MIT
  */
+var urlParse = function ( url, parseQueryString ) {
+	var urlReg = /^((\w+:)\/)?\/?((.*?)@)?(([^:\/\s]+)(:(\d+))?)(([^?#]*)(\?([^#]*))?)(#.*)?/
+	var m = urlReg.exec( url );
+
+	var ret = {};
+
+	ret.protocol 	= m[2] || '';
+	ret.slashes		= true;
+	ret.auth		= m[4] || null;
+	ret.host 		= m[5] || '';
+	ret.port		= m[8] || null;
+	ret.hostname	= m[6];
+	ret.hash 		= m[13] || null;
+	ret.search		= m[11];
+
+	if ( parseQueryString && m[12] ) {
+		var q 		= m[12].split('&');
+
+		ret.query 	= {};
+		for ( var i = 0; i < q.length; i ++ )  {
+			var p 	= q[i].split('=');
+			ret.query[p[0]]	= p[1] || '';
+		}
+		
+	}
+
+	ret.pathname	= m[10];
+	ret.path		= m[9];
+	ret.href 		= url;
+
+	return ret;
+}
 ;H = Horten = (function () {
 
 Horten.Path = Path;
@@ -48,8 +80,40 @@ function Path ( parse ) {
  	this.length = pathArr.length;
 }
  
-Path.prototype.getSegment = function ( i ) {
+Path.prototype.seg = function ( i ) {
 	return this.array[i];
+}
+
+
+//	--------------------
+//	Orthogonal Convience
+//	--------------------
+
+Path.prototype.set = function ( value, path, flags, origin, horten ) {
+	horten = horten || this.horten || Horten.instance();
+
+	if ( path == undefined )
+		return horten.set( value, this, flags, origin );
+
+	path = this.append ( path );
+
+	return horten.set ( value, path, flags, origin );
+}
+
+Path.prototype.get = function ( path, horten ) {
+	horten = horten || this.horten || Horten.instance();
+
+	if ( path == undefined )
+		return horten.get( this );
+
+	path = this.append ( path );
+
+	return horten.get ( path );	
+}
+
+
+Path.prototype.append = function ( postfix ) {
+	return Path(this.string + postfix);
 }
 
 /**
@@ -77,6 +141,12 @@ Path.prototype.translate = function ( root, prefix ) {
 		return this;
 		
 	return Path ( prefix.string + this.string.substr( rootStrLen ) );
+}
+
+
+Path.prototype.is = function ( compare ) {
+	compare = Path ( compare );
+	return this == compare;
 }
 
 
@@ -170,23 +240,16 @@ Horten.prototype.get = function ( path, original ) {
 	return d;
 }
 
-/** 
-	Same as Horten.prototype.get, except uses the default Horten
-	instance as available from Horten.instance()
-*/
-Horten.get = function ( path, original ) {
-	return Horten.instance().get ( path, original );
-	
-}
+
 
 /**
 	Enum of flags to be used with Horten.prototype.set.
-	
 */
 Horten.setFlags = {
 	keepTopology: 	2,
 	forceListeners: 4,
-	replace:		8
+	replace:		8,
+	readOnly: 		16 
 }
 
 
@@ -264,7 +327,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	// as well as the meta variable, although if meta doesn't
 	// continue, that's fine.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		var dp = d[p];
 		
 		if ( dp == null || 'object' != typeof dp ) {
@@ -315,7 +378,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	if ( pathLength == 0 ) {
 		touched = merge ( value, d, m, '/', lp ) || touched;
 	} else {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		m = m && m['_'] && m['_'][p];
 		touched = set ( p, value, d, m, path.toString(), lp ) || touched;
 	}
@@ -432,7 +495,7 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 			touched = true;
 			
 			if ( that.debug ) {
-				console.log ( origin ? origin.name : '<anon>', path, value ); 
+				console.log ( origin ? origin.name : '<anon>', path, JSON.stringify( value ) ); 
 			}
 			
 			triggerPrimitiveListeners ( lp, path, value );
@@ -502,26 +565,32 @@ Horten.prototype.set = function ( value, path, flags, origin ) {
 	}
 }
 
-/** 
-	Same as Horten.prototype.set, except uses the default Horten
-	instance as available from Horten.instance()
-*/
-Horten.set = function ( value, path, flags, origin ) {
-	return Horten.instance().set ( value, path, flags, origin );
-}
+//	--------------------
+//	Orthogonal Convience
+//	--------------------
+
+Horten.set = function ( value, path, flags, origin ) 
+	{	return Horten.instance().set ( value, path, flags, origin ); }
+Horten.get = function ( path, original ) 
+	{	return Horten.instance().get ( path, original ); }
+Horten.listen = function ( path, callback, options ) 
+	{	return Horten.instance().listen ( path, callback, options ); }
+Horten.listenPrimitive = function ( path, callback, options ) 
+	{	return Horten.instance().listenPrimitive ( path, callback, options ); }
 
 /**
 	Returns the meta object at a given path. If the create parameter is
 	true, a meta object will be created and its existence guaranteed. If
 	not, undefined will be return if the meta path does not exist.
 */
-Horten.prototype.getMeta = function ( path, create ) {
+Horten.prototype.getMeta = function ( path, create ) 
+{
 	path = Path ( path );
 	
 	var m = this.meta;
 	var i = 0, p;
 	
-	while ( p = path.getSegment ( i ) ) {
+	while ( p = path.seg ( i ) ) {
 		if ( !m['_'] ) {
 			if ( create ) 
 				m['_'] = {};
@@ -537,6 +606,43 @@ Horten.prototype.getMeta = function ( path, create ) {
 	}		
 	
 	return m;
+}
+
+Horten.prototype.log = function ()
+{
+	var args = Array.prototype.slice.call( arguments );
+	console.log ( args.map( String ).join('\t') );
+}
+
+//	---------
+//	Listeners
+//	---------
+
+Horten.prototype.listen = function ( path, callback, options )
+{
+	if ( !options )
+		options = {};
+
+	options.path = Path( path );
+
+	var listener = new Listener ( options );
+	listener.callback = callback;
+	this.attachListener( listener );
+	return listener;
+}
+
+Horten.prototype.listenPrimitive = function ( path, callback, options )
+{
+	if ( !options )
+		options = {};
+
+	options.path = Path( path );
+	options.primitive = true;
+
+	var listener = new Listener ( options );
+	listener.callback = callback;
+	this.attachListener( listener );
+	return listener;
 }
 
 /**
@@ -570,7 +676,8 @@ Horten.prototype.getMeta = function ( path, create ) {
 		_primitiveChanges	
 		_objectChange		Changes pending a flush
 */
-Horten.prototype.attachListener = function ( listener ) {
+Horten.prototype.attachListener = function ( listener ) 
+{
 	if ( listener.horten && listener.horten != this ) {
 		listener.horten.removeListener ( listener );
 	} else {
@@ -596,7 +703,8 @@ Horten.prototype.attachListener = function ( listener ) {
 /** 
 	Remove a listener object from this Horten instance.
 */
-Horten.prototype.removeListener = function ( listener ) {
+Horten.prototype.removeListener = function ( listener )
+{
 	if ( listener.horten && listener.horten != this ) {
 		throw 'Trying to remove listener attached to different Horten instance';
 	}
@@ -642,7 +750,8 @@ Horten.prototype.removeListener = function ( listener ) {
 	using a delayed call from Horten.prototype.set, but in exceptional circumstances,
 	it can be done manually.
 */
-Horten.prototype.flush = function () {
+Horten.prototype.flush = function ()
+{
 	var that = this;
 	
 	var listeners = this._pendingListeners;
@@ -689,6 +798,11 @@ Horten.prototype.flush = function () {
 	delete this._pendingListeners;
 }
 
+//	-----------------
+//	Utility functions
+//	-----------------
+
+
 /** 
 	Merge two objects together, using more or less the same rules as Horten.set, except
 	without calling listeners and all that jazz.
@@ -723,7 +837,7 @@ Horten.merge = function ( object, value, path, flags )
 	// Walk to one level short of where our given path tells
 	// us to start. This will walk up the d variable.
 	for ( i = 0; i < pathLength - 1; i ++ ) {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		
 		if ( d[p] == null || 'object' != typeof d[p] ) {
 			if ( flags & Horten.setFlags.keepTopology ) {
@@ -746,11 +860,9 @@ Horten.merge = function ( object, value, path, flags )
 	if ( pathLength == 0 ) {
 		merge ( value, d, '/' );
 	} else {
-		p = path.getSegment( i );
+		p = path.seg( i );
 		set ( p, value, d, path.toString() );
 	}
-	
-
 	
 	return object;
 
@@ -804,7 +916,6 @@ Horten.merge = function ( object, value, path, flags )
 		var currentIsOb = currentValue != null && 'object' == typeof currentValue;
 		var newIsOb = value != null && 'object' == typeof value;
 		
-		
 		if ( 
 			!newIsOb && 
 			currentValue === value
@@ -845,7 +956,6 @@ Horten.walkObject = function ( d, path, original ) {
 		return undefined;
 	}
 
-
 	// Walk our data object to get the path we're after.
 	for ( var i = 0; i < l && d != null; i ++ ) {
 		d = d[p[i]];
@@ -859,7 +969,9 @@ Horten.walkObject = function ( d, path, original ) {
 	return d;
 }
 
-
+/*
+	Clone an object. Been done a million time, this one ain't much different.
+*/
 Horten.clone = function ( ob ) {
 	return 'object' == typeof ob ? clone( ob ) : ob;
 
@@ -973,16 +1085,17 @@ function Listener ( options, onData )
 
 		this.primitive = !!options.primitive;
 		this.horten = options.horten || Horten.instance ();
+		
+		if ( options.debug )
+			this.debug = true;
+
 		if ( 'function' == typeof onData )
 			this.onData = onData;
 
 		if ( options.attach !== false )
 			this.attach ();
 
-	} 
-		
-
-
+	}
 };
 
 Listener.prototype.attach = function ( horten )
@@ -1036,7 +1149,7 @@ Listener.prototype.get = function ( path )
 
 Listener.prototype.set = function ( value, path, flags )
 {
-	if ( path == undefined || path == null )
+	if ( path == undefined || path == null || path == '/' || path == '' )
 		path = this.prefix;
 	
 	path = Path ( path ).translate ( this.prefix, this.path );
@@ -1067,50 +1180,25 @@ Listener.prototype.onData = function ( path, value, method, origin )
 	}
 	// Do what you will be here.
 }
-if ( 'function' == typeof require && 'object' == typeof exports ) {
-	//	Stupid check to see if we're in a node environment,
-	//	as opposed to the browser.
-	//var WebSocket = require('websocket');
-	var WebSocketClient = require('websocket').client;
 
-	exports.jsFile = __filename;
-}
-
-Horten.WebSocket = HortenWebSocket;
-function HortenWebSocket ( config )
+Listener.prototype.setPath = function ( newPath ) 
 {
+	var wasAttached = !!this._attachedToPath;
+	this.remove();
+	this.path = Path( newPath );
+
+	if ( wasAttached )
+		this.attach();
+}
+function Connection ( config ) {
+	config.primitive = true;
+
+	this.keepAlive = config.keepAlive;
+	
 	Listener.call ( this, config );
-
-
-	this.primitive = true;
-	// Magic object
-	this.FILL_DATA = {};
-
-	if ( config ) {
-		this.keepAlive = config && !!config.keepAlive;
-		this.attach ();
-	}
 }
 
-HortenWebSocket.prototype = new Listener ( null );
-
-HortenWebSocket.connect = function ( connectOpts ) {
-	//console.log ( "Trying connect with", connectOpts, WebSocket );
-	var ret;
-
-	if ( 'function' == typeof WebSocket && connectOpts.WebSocket ) {
-		ret = new HortenWebSocketClient ( connectOpts.WebSocket );
-		ret.attach();
-	} else if ( 'function' == typeof SockJS && connectOpts.SockJS ) {
-		ret = new HortenSockJSClient ( connectOpts.SockJS, connectOpts.path );
-		ret.attach();
-	} else {
-		console.log( "Nothing to connect with" );
-	}
-
-	return ret;
-}
-
+Connection.prototype = new Listener( null );
 
 /** 
  * Queue one or more paths to pull from the server. This will ask the server
@@ -1122,21 +1210,20 @@ HortenWebSocket.connect = function ( connectOpts ) {
  * 
  * @param paths
  */
-HortenWebSocket.prototype.pull = function ( path )
+Connection.prototype.pull = function ( path )
 {
 	path = Path( path ).string;
 
 	if ( !this._pullPaths )
 		this._pullPaths = [];
 	
-
 	if ( this._pullPaths.indexOf ( path ) == -1 )
 		this._pullPaths.push ( path );
 	
 	this._pull ();
 };
 
-HortenWebSocket.prototype._pull = function () 
+Connection.prototype._pull = function () 
 {
 	if ( !this._pullPaths || !this._pullPaths.length )
 		return;
@@ -1156,12 +1243,9 @@ HortenWebSocket.prototype._pull = function ()
 }
 
 
-
-
-HortenWebSocket.prototype.push = function ( path )
+Connection.prototype.push = function ( path )
 {
 	path = Path ( path );
-	
 
 	if ( !this._pushData )
 		this._pushData = {};
@@ -1170,99 +1254,14 @@ HortenWebSocket.prototype.push = function ( path )
 	this._push();
 }
 
-HortenWebSocket.prototype.readyToSend = function ()
-{
-	return false;
-}
-
-/**
- * Called when the other end of the connection drops
- * unexpectedly.
- */
-
-HortenWebSocket.prototype.onremoteclose = function ()
-{	
-	var that = this;
-	if ( this.keepAlive && 'function' == typeof this.reconnect ) {
-		console.log ( that.name, 'Remote closed, retrying in 1 second' );
-
-		setTimeout ( function () {
-			that.reconnect ();
-		}, 1000 );
-	} else {
-		console.log ( that.name, 'Closed by remote' );
-		
-		this.close();
-	}
-}
-
-HortenWebSocket.prototype.onData = function ( value, path )
-{
-	//console.log ( 'HWS ONDATA', value, path);
-
-	if ( !this._pushData )
-		this._pushData = {};
-	
-	this._pushData[path] = value;
-
-	// Should delay push here
-	this._push();
-}
-
-HortenWebSocket.prototype.onRemoteData = function ( msg ) {
-	if ( 'string' == typeof msg ) {
-		try {
-			msg = JSON.parse ( msg );
-		} catch ( e ) {
-			console.log ( this.name, 'Bad JSON from remote' );
-			return;
-		}
-	}
-
-			
-	if ( msg.set ) {
-		var set = {};
-		//console.log ( 'msg.set '+JSON.stringify ( msg.set ) );
-		
-		for ( var remotePath in msg.set ) {
-			
-			var value = msg.set[remotePath];
-			
-			this.set ( value, remotePath );
-		}
-		
-		//console.log ( "GOT MESG set", set );
-
-	}
-	
-	if ( msg.get ) {
-		this.push( msg.get );
-	}
-}
-
-/** Close the connection with no hope of reopening */
-HortenWebSocket.prototype.close = function ()
-{
-	this.remove();
-	this.keepAlive = false;
-	
-	if ( 'function' == typeof this._close ) {
-		this._close();
-	}
-};
-
-HortenWebSocket.prototype._push = function ()
+Connection.prototype._push = function ()
 {
 	if ( !this._pushData )
 		return;
-	
-	
 
 	if ( !this.readyToSend() ) {
 		return;
 	}
-	
-	//console.log ( "HWS PUSH", this._pushData );
 
 	var somethingToSend = false;
 	
@@ -1283,10 +1282,96 @@ HortenWebSocket.prototype._push = function ()
 	this._pushData = {};	
 }
 
+Connection.prototype.readyToSend = function ()
+{
+	return false;
+}
+
 /**
- * 
+ * Called when the other end of the connection drops
+ * unexpectedly.
  */
-HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
+
+Connection.prototype.onRemoteClose = function ()
+{	
+	var that = this;
+	if ( this.keepAlive && 'function' == typeof this.reconnect ) {
+		console.log ( that.name, 'Remote closed, retrying in 1 second' );
+
+		setTimeout ( function () {
+			that.reconnect ();
+		}, 1000 );
+	} else {
+		console.log ( that.name, 'Closed by remote' );
+		
+		this.close();
+	}
+}
+
+Connection.prototype.onData = function ( value, path )
+{
+	if ( !this._pushData )
+		this._pushData = {};
+	
+	this._pushData[path] = value;
+
+	// Should delay push here
+	this._push();
+}
+
+Connection.prototype.onRemoteData = function ( msg ) {
+
+	if ( this.debug ) {
+		console.log ( this.name, "RECV", msg );
+	}
+
+	if ( 'string' == typeof msg ) {
+		try {
+			msg = JSON.parse ( msg );
+		} catch ( e ) {
+			console.log ( this.name, 'Bad JSON from remote' );
+			return;
+		}
+	}
+
+			
+	if ( msg.set ) {
+		var set = {};
+		//console.log ( 'msg.set '+JSON.stringify ( msg.set ) );
+		
+		for ( var remotePath in msg.set ) {
+			
+			var value = msg.set[remotePath];
+
+			this.set ( value, remotePath );
+		}
+		
+		//console.log ( "GOT MESG set", set );
+
+	}
+	
+	if ( msg.get ) {
+		this.push( msg.get );
+	}
+}
+
+/** Close the connection with no hope of reopening */
+Connection.prototype.close = function ()
+{
+	this.remove();
+	this.keepAlive = false;
+	
+	if ( 'function' == typeof this._close ) {
+		this._close();
+	}
+};
+
+
+//
+//	Various things to attach.
+//
+
+Connection.prototype.attachWebSocket = function ( websocket ) {
 	var that = this;
 	
 	websocket.onopen = function () 
@@ -1303,14 +1388,13 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	
 	websocket.onmessage = function ( msg )
 	{
-		//console.log ( that.name, 'onmessage', msg.data );
 		that.onRemoteData ( msg.data );		
 	};
 	
 	websocket.onclose = function ()
 	{
 		//console.log ( that.name, "onclose" );
-		that.onremoteclose ();
+		that.onRemoteClose ();
 	};	
 
 	this.readyToSend = function () {
@@ -1320,6 +1404,7 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	this.send = function ( msg ) {
 		if ( websocket.readyState != 1 ) 
 			return false;
+
 
 		msg = JSON.stringify ( msg );
 		websocket.send ( msg );
@@ -1337,153 +1422,196 @@ HortenWebSocket.prototype.attachWebSocket = function ( websocket ) {
 	}
 }
 
-/**
- * 
- */
-HortenWebSocket.prototype.attachWebSocketNodeClient = function ( client ) {
-	var that = this;
-
-	client.on('connectFailed', function ( error ) {
-		console.log ( that.name, 'Connecting failed' );
-		that.onremoteclose ()
-	});
-
-	client.on('connect', function ( conn ) {
-		console.log ( that.name, 'Connected ' );
-		that.wsn = conn;
-
-		conn.on('close', function () {
-			that.onremoteclose ();
-		});
-
-		conn.on('message', function ( message ) {
-			if ( message.type != 'utf8' ) {
-				console.log ( that.name, 'Not UTF8 from remote' );
-				return;
-			}
-			that.onRemoteData ( message.utf8Data );
-		});
-
-		that._push ();
-		that._pull ();
-	});
-
-	this.readyToSend = function () {
-		return that.wsn && that.wsn.connected;
+Connection.prototype.attachSockJSClient = function ( sock, remotePath, config ) {
+	that = this;
+	that.sockJS = sock;
+	remotePath = Path ( remotePath ).string;
+		
+	sock.onopen = function () {
+		sock.send ( JSON.stringify ( {
+			path: remotePath
+		}))
 	}
 
-	this.send = function ( msg ) {
-		if ( !that.wsn || !that.wsn.connected )
-			return false;
+	sock.onmessage = function ( msg ) {
+		try {
+			msg = JSON.parse ( msg.data );
+		} catch ( e ) {
+			console.log ( that.name, "Bad JSON in server path response", msg );
+			sock.close();
+			that.onRemoteClose ()
+			return;
+		}
 
-		that.wsn.sendUTF ( JSON.stringify ( msg ) );
-		return true;
+		if ( msg ) {
+			that.attachWebSocket ( sock );
+			that.onRemoteData ( msg );
+		} else {
+			console.log ( that.name, "Didn't get path handshake from server" );
+			sock.close ();
+			that.onRemoteClose ();
+		}
+	}
+
+	sock.onclose = function () {
+		console.log ( that.name, "Didn't get path handshake from server" );
+		that.onRemoteClose ();
+	}
+
+	sock.onerror = function () {
+
 	}
 }
+Horten.Client = Client;
 
 
+var wsProtocol = 'horten-protocol';
 
-/** 
- * Connect to a remote WebSocket server at a given url.
- * 
- * @param url
- */
-Horten.WebSocketClient = HortenWebSocketClient;
-function HortenWebSocketClient ( url, config ) 
-{
-	var that = this;
-	HortenWebSocket.call( this, config );
 
-	that.name = url;
+function Client ( url, options, callback ) {
 
-	var client;
+	if ( this instanceof Client ) {
+		throw new Error ( "Not a constructor" );
+	}
 
-	if ( 'function' == typeof WebSocket ) {
-		this.reconnect = function () {
-			console.log ( "WebSocket connecting to", url );
-			client = new WebSocket ( url, 'horten-protocol' );
-			this.attachWebSocket ( client );
+	if ( !options )
+		options = {};
+
+	options.keepAlive = options.keepAlive !== false;
+	
+
+
+	var urlStr;
+
+	if ( 'string' == typeof url ) {
+		urlStr = url;
+		url = urlParse( url, true );
+	} else if ( Array.isArray ( url ) ) {
+		var client, i;
+		for ( i = 0; i < url.length && !client; i++ ) {
+			//try {
+				client = Client ( url[i], options, callback )
+			//} catch (e) {}
+
+			if ( client ) 
+				return client;
 		}
 
-	} else if ( 'function' == typeof WebSocketClient ) {
-		this.reconnect = function () {
-			client = new WebSocketClient ()
-			client.connect ( url, 'horten-protocol' );
-			this.attachWebSocketNodeClient ( client );
-		}
+		throw new Error ( 'No compatible connect method')
 
 	} else {
-		throw new Error ( 'No WebSocket library' );
+		throw new Error ( 'parameter unsupported');
 	}
 
-	this.primitive = true;
-	this.attach();
-	this.reconnect();
-	
+	console.log ( "TRYING CONNNECT", url );
+	var listener;
 
-}
+	if ( url.protocol == 'ws:' ) {
+		// Web Socket
+		listener = new Connection ( options )
 
-HortenWebSocketClient.prototype = new HortenWebSocket ( null );
+		listener.name = urlStr;
 
-/** 
- * Connect to a remote WebSocket server at a given url.
- * 
- * @param url
- */
-function HortenSockJSClient ( url, remotePath, config ) 
-{
-	var that = this;
-	HortenWebSocket.call( this, config );
+		var client;
 
-	
+		if ( 'function' == typeof require && 'undefined' != typeof exports ) {
+			var client;
 
-	remotePath = Path ( remotePath ).string;
-	that.name = url + '/'+remotePath;
+			listener.reconnect = function () {
 
-	this.reconnect = function () {
-		var sock = new SockJS ( url );
-		sock.onopen = function () {
-			sock.send ( JSON.stringify ( {
-				path: remotePath
-			}))
-		}
+				client = new (require('websocket').client);
 
-		sock.onmessage = function ( msg ) {
+				client.on('connectFailed', function ( error ) {
+					console.log ( listener.name, 'Connecting failed' );
+					listener.onRemoteClose ()
+				});
 
+				client.on('connect', function ( conn ) {
+					console.log ( listener.name, 'Connected ' );
+					listener.wsn = conn;
 
-			try {
-				msg = JSON.parse ( msg.data );
-			} catch ( e ) {
-				console.log ( that.name, "Bad JSON in server path response", msg );
-				sock.close();
-				that.onremoteclose ()
-				return;
+					conn.on('close', function () {
+						listener.onRemoteClose ();
+					});
+
+					conn.on('message', function ( message ) {
+						if ( message.type != 'utf8' ) {
+							console.log ( listener.name, 'Not UTF8 from remote' );
+							return false;
+						}
+						listener.onRemoteData ( message.utf8Data );
+					});
+
+					listener._push ();
+					listener._pull ();
+				});
+				client.connect ( urlStr, wsProtocol );
 			}
 
-			if ( msg.path == remotePath ) {
-				that.attachWebSocket ( sock );
-				console.log ( that.name, "Connected SockJS" );
-
-				that.onRemoteData ( msg );
-			} else {
-				console.log ( that.name, "Didn't get path handshake from server" );
-				sock.close ();
-				that.onremoteclose ();
+			listener.readyToSend = function () {
+				return listener.wsn && listener.wsn.connected;
 			}
+
+			listener.send = function ( msg ) {
+				if ( !listener.wsn || !listener.wsn.connected )
+					return false;
+
+				listener.wsn.sendUTF ( JSON.stringify ( msg ) );
+				return true;
+			}
+
+			
+
+
+		} else if ( 'function' == typeof WebSocket || 'object' == typeof WebSocket ) {
+			listener.reconnect = function () {
+				console.log ( "WebSocket connecting to", url );
+				client = new WebSocket ( urlStr, wsProtocol );
+
+				listener.attachWebSocket ( client );
+			}
+		} else {
+			//throw new Error ( 'No WebSocket library' );
+			return false;
 		}
 
-		sock.onclose = function () {
-			console.log ( that.name, "Didn't get path handshake from server" );
-			that.onremoteclose ();
+	} else
+	if ( url.protocol == 'sockjs:' ) {
+		if ( 'function' != typeof SockJS ) 
+			return undefined;
+
+		var sockUrl = "http://"+url.hostname;
+		if ( url.port ) 
+		    sockUrl += ':'+url.port;
+
+		sockUrl += url.pathname;
+
+		
+
+		listener = new Connection ( options );
+		listener.name = urlStr;
+
+		listener.reconnect = function () {
+			console.log ("SockJS Reconnect", sockUrl );
+			var sock = new SockJS ( sockUrl );
+			listener.attachSockJSClient ( sock, url.query.path );
 		}
+		
 	}
 
-	this.reconnect ();
 
-	this.attach ( );
+	if ( listener && listener.reconnect ) {
+		listener.pull ();
+		listener.reconnect();
+		listener.attach();
+
+		return listener;
+	}
+
+	return undefined;
 }
 
-HortenSockJSClient.prototype = new HortenWebSocket ( null );
+
 
 ;return Horten;
 })();

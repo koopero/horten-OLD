@@ -1,0 +1,98 @@
+#!/usr/bin/env node
+
+var ArgumentParser = require('argparse').ArgumentParser;
+
+var H = require('horten');
+
+
+var parser = new ArgumentParser({
+  version: H.version,
+  addHelp:true,
+  description: 'Batteries-included Horten server.'
+});
+
+parser.addArgument(
+  [ 'url' ],
+  {
+    help: 'URL of server.',
+    defaultValue: 'http://localhost:31337/'
+  }
+);
+
+parser.addArgument(
+  [ '--mysql' ],
+  {
+    help: 'Database information in form mysql://user:pass@host/database/table'
+  }
+);
+
+parser.addArgument(
+  [ '--flash' ],
+  {
+    help: 'Serve Flash policy xml ( usually requires root )',
+    action: 'storeTrue'
+  }
+);
+
+parser.addArgument(
+  [ '--log' ],
+  {
+    help: 'Log all changes',
+    action: 'storeTrue'
+  }
+);
+
+parser.addArgument(
+  ['--hss'],
+  {
+    help: 'Horten Simple Socket port.'
+  }
+)
+
+parser.addArgument(
+  ['--osc'],
+  {
+    help: 'OSC server port.'
+  }
+)
+
+
+
+var args = parser.parseArgs();
+
+if ( args.log ) {
+  H.instance().debug = args.log;
+}
+
+var HServer = new (H.Server) ( {
+  url: args.url
+});
+
+HServer.listenHttp ();
+HServer.log( 'javascript', HServer.clientJSUrl );
+
+if ( args.hss ) {
+  HServer.listenHSS ( parseInt( args.hss ) );
+}
+
+if ( args.flash ) {
+  HServer.listenFlashPolicy ();
+}
+
+if ( args.osc ) {
+  var OSCServer = new (H.OSC)( {
+    server: {
+      port: parseInt ( args.osc )
+    }
+  });
+}
+
+if ( args.mysql ) {
+  var mysql = new (H.MySQL) ( {
+    columns: ['time','number'],
+    connection: args.mysql,
+    keepAlive: true,
+  });
+  mysql.pull();
+}
+

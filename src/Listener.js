@@ -27,6 +27,10 @@ function Listener ( options, onData )
 
 		this.primitive = !!options.primitive;
 		this.horten = options.horten || Horten.instance ();
+		
+		if ( options.debug )
+			this.debug = true;
+
 		if ( 'function' == typeof onData )
 			this.onData = onData;
 
@@ -117,4 +121,14 @@ Listener.prototype.onData = function ( path, value, method, origin )
 		this.callback( path, value, method, origin );
 	}
 	// Do what you will be here.
+}
+
+Listener.prototype.setPath = function ( newPath ) 
+{
+	var wasAttached = !!this._attachedToPath;
+	this.remove();
+	this.path = Path( newPath );
+
+	if ( wasAttached )
+		this.attach();
 }

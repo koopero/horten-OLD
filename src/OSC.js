@@ -15,8 +15,12 @@ function HortenOSC ( config ) {
 	this.autoClient = parseInt( config.autoClient );
 	this.treatAsArray = config.treatAsArray;
 	
-	if ( config.server && config.server.host && config.server.port ) { 
+	if ( config.server && config.server.port ) { 
+		if ( !config.server.host )
+			config.server.host = "localhost";
+
 		this.name = 'osc://:'+config.server.port;
+		console.log ( "listening to osc", config.server.port );
 
 		this.server = new osc.Server ( config.server.port, config.server.host );
 		this.server.on ( "message", function ( decoded, rinfo ) {
