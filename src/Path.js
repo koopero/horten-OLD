@@ -100,8 +100,14 @@ function Path ( parse, horten ) {
 		arr = str.substr ( 1, str.length - 2 ).split ( '/' );
 	}
 
+	for ( var i = 0; i < arr.length; i ++ ) {
+		this[i] = arr[i];
+	}
 
 
+	this.slice = function ( start, end ) {
+		return arr.slice ( start, end );
+	}
  	this.string = str;
  	this.array = arr;
  	this.length = arr.length;
