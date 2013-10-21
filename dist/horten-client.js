@@ -1,5 +1,5 @@
 /**
- * horten v0.3.0 - 2013-09-29
+ * horten v0.3.0 - 2013-10-21
  * Experimental shared-state communication framework. Speaks Javascript, MySQL, OSC and WebSocket.
  *
  * Copyright (c) 2013 koopero
