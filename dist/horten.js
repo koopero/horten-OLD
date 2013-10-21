@@ -9,43 +9,80 @@ var urlParse = require('url').parse;
 
 Horten.Path = Path;
 
-function Path ( parse ) {
+function Path ( parse, horten ) {
+
+	// Default to 
+	horten = horten || Horten.instance();
 
   	// If the input given is already a parsed path,
  	// return it unchanged.
  	if ( parse && parse.constructor == Path ) {
- 		return parse;
+ 		if ( parse.horten == horten )
+ 			return parse;
+
+ 		parse = String( parse );
  	}
-  
+
   	// Can be called as either Path or new Path
  	if ( this.constructor != Path ) {
- 		return new Path ( parse );
+ 		return new Path ( parse, horten );
  	}
  	
- 	// This parsing works, but could use some optimization...
- 	var pathStr, pathArr;
+ 	// Convert to string
+ 	var str, arr;
  	if ( parse == null || parse == undefined ) {
- 		parse = '/';
+ 		str = '/';
 	} else if ( Array.isArray ( parse ) ) {
-    	parse = parse.join('/');
+    	str = parse.join('/');
 	} else {
-		parse = String ( parse );
+		// I'm kind of iffy about this...
+		str = String ( parse );
 	}
-	
-	// ... in fact, this is downright clunky.		
-	pathArr = parse.split('/').filter ( function ( el ) {
-		return ( ( typeof el == 'string' ) && el.length > 0 );
-	} );
-	
-	if ( pathArr.length == 0 ) {
-		pathStr = '/';
+
+	// Normalize string
+	if ( str != '/' ) {
+		// Get rid of double slashes
+		str = str.replace( /\/+/g, '/' );
+
+		// Ensure leading slash
+		if ( str.charAt(0,1) != '/' )
+			str = '/'+str;
+
+		// Ensure trailing slash
+		if ( str.charAt(str.length - 1) != '/' )
+			str = str+'/';
+	}
+
+
+	// Memoize Paths on horten
+	if ( 'object' != typeof horten._paths )
+		horten._paths = {};
+
+	var memo = horten._paths;
+	if ( memo[str] )
+		return memo[str];
+
+	memo[str] = this;
+
+	// Get array
+	if ( str == '/') {
+		arr = [];
 	} else {
-		pathStr = '/'+pathArr.join( '/' )+'/';
+		arr = str.substr ( 1, str.length - 2 ).split ( '/' );
 	}
- 	
- 	this.string = pathStr;
- 	this.array = pathArr;
- 	this.length = pathArr.length;
+
+	for ( var i = 0; i < arr.length; i ++ ) {
+		this[i] = arr[i];
+	}
+
+
+	this.slice = function ( start, end ) {
+		return arr.slice ( start, end );
+	}
+ 	this.string = str;
+ 	this.array = arr;
+ 	this.length = arr.length;
+ 	this.horten = horten;
 }
  
 Path.prototype.seg = function ( i ) {
