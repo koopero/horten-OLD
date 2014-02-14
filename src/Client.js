@@ -1,8 +1,10 @@
-Horten.Client = Client;
+// #ifdef NODE
+var Connection = require('./Connection.js');
+module.exports = Client;
+// #endif
 
 
 var wsProtocol = 'horten-protocol';
-
 
 function Client ( url, options, callback ) {
 
@@ -14,8 +16,6 @@ function Client ( url, options, callback ) {
 		options = {};
 
 	options.keepAlive = options.keepAlive !== false;
-	
-
 
 	var urlStr;
 
@@ -45,14 +45,11 @@ function Client ( url, options, callback ) {
 	if ( url.protocol == 'ws:' ) {
 		// Web Socket
 		listener = new Connection ( options )
-
 		listener.name = urlStr;
 
 		var client;
-
+		// #ifdef NODE
 		if ( 'function' == typeof require && 'undefined' != typeof exports ) {
-			var client;
-
 			listener.reconnect = function () {
 
 				client = new (require('websocket').client);
@@ -95,11 +92,10 @@ function Client ( url, options, callback ) {
 				listener.wsn.sendUTF ( JSON.stringify ( msg ) );
 				return true;
 			}
+		} else 
+		// #else
 
-			
-
-
-		} else if ( 'function' == typeof WebSocket || 'object' == typeof WebSocket ) {
+		if ( 'function' == typeof WebSocket || 'object' == typeof WebSocket ) {
 			listener.reconnect = function () {
 				console.log ( "WebSocket connecting to", url );
 				client = new WebSocket ( urlStr, wsProtocol );
@@ -111,8 +107,7 @@ function Client ( url, options, callback ) {
 			return false;
 		}
 
-	} else
-	if ( url.protocol == 'sockjs:' ) {
+	} else if ( url.protocol == 'sockjs:' ) {
 		if ( 'function' != typeof SockJS ) 
 			return undefined;
 
@@ -121,8 +116,6 @@ function Client ( url, options, callback ) {
 		    sockUrl += ':'+url.port;
 
 		sockUrl += url.pathname;
-
-		
 
 		listener = new Connection ( options );
 		listener.name = urlStr;

@@ -9,10 +9,10 @@
 		
 	Any character other than slash can be used in a path segment, although in
 	the future, Horten may be extended to perform special behaviour on segments
-	prefixed with underscore (_), so please avoid it. Also, it would be wise to
+	prefixed with dollar ($), so please avoid it. Also, it would be wise to
 	avoid anything you wouldn't put in a variable name.
 	
-		/_don't/do/this/ /while/it might work, it's sketchy/
+		/$don't/do/this/ /while/it might work, it's sketchy/
 	
 	The Path constructor takes a single parameter, usually a string, an Array or
 	undefined, an returns a Path object with both an array and string representation
@@ -36,25 +36,25 @@
 	your code. 
 
 */
-Horten.Path = Path;
 
-function Path ( parse, horten ) {
+// #ifdef NODE
+module.exports = Path;
+var instance = function () {
+	return require('./Horten.js').instance();
+}
+// #endif
 
-	// Default to 
-	horten = horten || Horten.instance();
 
+function Path ( parse ) {
   	// If the input given is already a parsed path,
  	// return it unchanged.
  	if ( parse && parse.constructor == Path ) {
- 		if ( parse.horten == horten )
- 			return parse;
-
- 		parse = String( parse );
+ 		return parse;
  	}
 
   	// Can be called as either Path or new Path
  	if ( this.constructor != Path ) {
- 		return new Path ( parse, horten );
+ 		return new Path ( parse );
  	}
  	
  	// Convert to string
@@ -83,15 +83,7 @@ function Path ( parse, horten ) {
 	}
 
 
-	// Memoize Paths on horten
-	if ( 'object' != typeof horten._paths )
-		horten._paths = {};
-
-	var memo = horten._paths;
-	if ( memo[str] )
-		return memo[str];
-
-	memo[str] = this;
+	//memo[str] = this;
 
 	// Get array
 	if ( str == '/') {
@@ -111,7 +103,6 @@ function Path ( parse, horten ) {
  	this.string = str;
  	this.array = arr;
  	this.length = arr.length;
- 	this.horten = horten;
 }
  
 Path.prototype.seg = function ( i ) {

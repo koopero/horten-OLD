@@ -1,4 +1,4 @@
-var H = require('../dist/horten.js' );
+var H = require('../index.js' );
 require('should');
 var assert = require('assert');
 

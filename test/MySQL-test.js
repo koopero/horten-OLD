@@ -16,7 +16,7 @@
 	tables. DO NOT store anything else in this database, as it will
 	quite likely be overwritten.
 
-	This text is meant for development, and in most cases you should be able
+	This test is meant for development, and in most cases you should be able
 	to trust Horten.MySQL to just-work(tm).
 */
 

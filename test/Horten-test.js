@@ -1,4 +1,4 @@
-var H = require('../dist/horten.js' );
+var H = require('../index.js' );
 var should = require('should');
 
 describe ( 'Horten', function () {

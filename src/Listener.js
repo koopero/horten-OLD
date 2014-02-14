@@ -3,6 +3,14 @@
 //	-------------
 
 
+// #ifdef NODE
+var 
+	Horten = require('./Horten.js'),
+	Path = require('./Path.js');
+
+module.exports = Listener;
+// #endif 
+
 /** 
 	options = {
 		path: 		// Path to attach to,
@@ -11,10 +19,10 @@
 		horten: 	// Horten overide, default is Horten.getInstance ()
 	} || path 
 */
-Horten.Listener = Listener;
 
 function Listener ( options, onData )
 {
+	var self = this;
 	if ( typeof options == 'string' ) {
 		options = {
 			path: options
@@ -22,52 +30,56 @@ function Listener ( options, onData )
 	}
 
 	if ( typeof options == 'object' && options != null ) {
-		this.path = new Path ( options.path );
-		this.prefix = new Path ( options.prefix );
+		self.path = Path( options.path );
+		self.prefix = Path( options.prefix );
 
-		this.primitive = !!options.primitive;
-		this.horten = options.horten || Horten.instance ();
+		self.primitive = !!options.primitive;
+		self.horten = options.horten || Horten.instance();
 		
 		if ( options.debug )
-			this.debug = true;
+			self.debug = true;
 
 		if ( 'function' == typeof onData )
-			this.onData = onData;
+			self.onData = onData;
 
 		if ( options.attach !== false )
-			this.attach ();
+			self.attach ();
 
 	}
 };
 
 Listener.prototype.attach = function ( horten )
 {
+	var self = this;
 	if ( horten ) {
-		this.horten = horten;
+		self.horten = horten;
 	} 
 
-	if ( !this.horten )
-		this.horten = Horten.instance();
+	if ( !self.horten )
+		self.horten = Horten.instance();
 
-	this.horten.attachListener ( this );
+	self.horten.attachListener ( self );
 }
 
 Listener.prototype.remove = function ()
 {
-	if ( this.horten )
-		this.horten.removeListener ( this );
+	var self = this;
+	if ( self.horten )
+		self.horten.removeListener ( self );
 }
 
 Listener.prototype.push = function ()
 {
-	if ( !this.primitive ) {
-		this.onData ( this.horten.get( this.path ), Path ( this.prefix ), 'push', this );
+	var self = this;
+
+	if ( !self.primitive ) {
+		self.onData ( self.horten.get( self.path ), Path ( self.prefix ), 'push', self );
 	} else {
-		var d = this.horten.get ( this.path, true ), k;
+		var d = self.horten.get ( self.path, true ), k;
 		d = Horten.flatten( d );
 
 		for ( k in d ) {
-			this.onData ( d[k], Path ( k ).translate ( null, this.prefix ) );
+			self.onData ( d[k], Path ( k ).translate ( null, self.prefix ) );
 		}
 	}
 }

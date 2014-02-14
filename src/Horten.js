@@ -1,37 +1,35 @@
-/*
-	Get an appropriate 'nextTick' function.
-*/
-var nextTick;
-if ( 'object' == typeof process && process['nextTick'] ) {
-	nextTick = process.nextTick;
-} else {
-	nextTick = function ( callback ) {
-		setTimeout( callback, 0 );
-	}
-}
+// #ifdef NODE
+var nextTick = process.nextTick,
+	__global = global;
+
+var Path = require('./Path.js');
+
+module.exports = Horten;
+// #endif
 
 /**
 	Horten
-	
-	data - Contains the 
-	
-	meta -
-	
 */
 
-Horten.Horten = Horten;
 function Horten ( options ) {
+
+	var self = this;
+
+	if ( self.constructor != Horten ) {
+		return Horten.instance();
+	}
+
 	if ( !options || 'object' != typeof options ) 
 		options = {};
 
 	if ( options.debug )
-		this.debug = true;
+		self.debug = true;
 		
-	this.data = {};
-	this.meta = {};
+	self.data = {};
+	self.meta = {};
 	
-	if ( !Horten.__instance ) {
-		Horten.__instance = this;
+	if ( !__global.__HortenInstance ) {
+		__global.__HortenInstance = self;
 	}
 }
 
@@ -43,11 +41,11 @@ function Horten ( options ) {
 
 Horten.instance = function ()
 {
-	if ( !Horten.__instance ) {
-		Horten.__instance = new Horten ();
+	if ( !__global.__HortenInstance ) {
+		__global.__HortenInstance = new Horten ();
 	}
 
-	return Horten.__instance;
+	return __global.__HortenInstance;
 }
 
 /**

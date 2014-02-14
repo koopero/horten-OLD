@@ -1,5 +1,13 @@
-HortenMySQL.prototype = new Listener ( false );
-HortenMySQL.prototype.contructor = HortenMySQL;
+var osc = require ( 'node-osc' ),
+	urllib = require( 'url' ),
+	util = require ( 'util' );
+
+var 
+	Listener = require( './Listener.js' ),
+	Path = require( './Path.js');
+
+util.inherits( MySQL, Listener );
+module.exports = MySQL;
 
 /**
 	Config
@@ -25,7 +33,7 @@ HortenMySQL.prototype.contructor = HortenMySQL;
 
 */
 
-function HortenMySQL ( config ) {
+function MySQL ( config ) {
 
 	if ( 'string' == typeof config.connection ) {
 		var u = urlParse( config.connection );
@@ -258,7 +266,7 @@ function HortenMySQL ( config ) {
 
 }
 
-HortenMySQL.prototype.close = function ()
+MySQL.prototype.close = function ()
 {
 	this.keepAlive = false;
 	this.connection.end ();
@@ -269,7 +277,7 @@ HortenMySQL.prototype.close = function ()
 	adjusting quantization and format.
 */
 
-HortenMySQL.prototype.escapeDate = function ( date )
+MySQL.prototype.escapeDate = function ( date )
 {
 	date = new Date ( date );
 	var timeStamp = date.getTime ();
@@ -280,7 +288,7 @@ HortenMySQL.prototype.escapeDate = function ( date )
 	return parseInt ( timeStamp )
 }
 
-HortenMySQL.prototype.pull = function ( callback, time )
+MySQL.prototype.pull = function ( callback, time )
 {
 	var sql 	 = "SELECT * FROM `"+this.dataTable+"` ";
 
@@ -351,7 +359,7 @@ HortenMySQL.prototype.pull = function ( callback, time )
  * @param path
  * @returns 
  */
-HortenMySQL.prototype.getPathId = function ( path )
+MySQL.prototype.getPathId = function ( path )
 {
 	path = Path ( path );
 
@@ -402,7 +410,7 @@ HortenMySQL.prototype.getPathId = function ( path )
 }
 
 
-HortenMySQL.prototype.onData = function ( value, path, method, origin )
+MySQL.prototype.onData = function ( value, path, method, origin )
 {
 	//console.log ( "MYSQL ONDATA", value, path, method, origin );
 
@@ -414,7 +422,7 @@ HortenMySQL.prototype.onData = function ( value, path, method, origin )
 	this.flush ();
 }
 
-HortenMySQL.prototype.flush = function ( callback )
+MySQL.prototype.flush = function ( callback )
 {
 	var that = this;
 
@@ -535,8 +543,4 @@ HortenMySQL.prototype.flush = function ( callback )
 			}
 		}
 	}
-
-
 }
-
-Horten.MySQL = HortenMySQL;

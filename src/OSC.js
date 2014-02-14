@@ -1,29 +1,36 @@
-var osc = require ( 'node-osc' );
+var osc = require ( 'node-osc' ),
+	urllib = require( 'url' ),
+	util = require ( 'util' );
 
-Horten.OSC = HortenOSC;
-HortenOSC.prototype = new Listener ( null );
-function HortenOSC ( config ) {
-	var that = this;
-	if ( config != null ) {
-		this.primitive = config.primitive = true;
-		Listener.call ( this, config, this.onData );
-	}
+var 
+	Argue = require('./Argue.js'),
+	Listener = require( './Listener.js' );
 
-	//console.log ( 'OSC', config );
-	this.name = 'osc';
+util.inherits( OSC, Listener );
+module.exports = OSC;
 
-	this.autoClient = parseInt( config.autoClient );
-	this.treatAsArray = config.treatAsArray;
+
+function OSC ( url, path ) {
+
+	var conf = Argue( arguments, 'url', Path, { primitive: true } );
+	var self = this;
+
+	Listener.call ( self, conf, self.onData );
 	
-	if ( config.server && config.server.port ) { 
-		if ( !config.server.host )
-			config.server.host = "localhost";
+	//console.log ( 'OSC', conf );
+	self.name = 'osc';
+	self.autoClient = parseInt( conf.autoClient );
+	self.treatAsArray = conf.treatAsArray;
+	
+	if ( conf.url ) {
 
-		this.name = 'osc://:'+config.server.port;
-		console.log ( "listening to osc", config.server.port );
+		var listen = urllib.parse( conf.url );
+		
+		self.name = 'osc://:'+conf.server.port;
+		console.log ( "listening to osc", conf.server.port );
 
-		this.server = new osc.Server ( config.server.port, config.server.host );
-		this.server.on ( "message", function ( decoded, rinfo ) {
+		self.server = new osc.Server ( listen.port, listen.hostname );
+		self.server.on ( "message", function ( decoded, rinfo ) {
 			
 			var path = decoded[0];
 
@@ -31,34 +38,42 @@ function HortenOSC ( config ) {
 			var value = decoded.length == 2 ? decoded[1] : decoded.slice(1);
 
 			if ( path ) {
-				that.name = 'osc://'+rinfo.address;
-				that.set ( value, path);
+				self.name = 'osc://'+rinfo.address;
+				self.set ( value, path);
 			}
 
-			if ( that.autoClient ) {
-				that.addClient( rinfo.address, that.autoClient, true )
+			if ( self.autoClient ) {
+				self.addClient( rinfo.address, self.autoClient, true )
 			}
 
 		} );
 		
 	}
 
-	if ( config.client && config.client.host && config.client.port ) {
-		this.addClient ( config.client.host, config.client.port, false );
+	if ( conf.client && conf.client.host && conf.client.port ) {
+		self.addClient ( conf.client.host, conf.client.port, false );
 	}
 	
-	this.close = function () {
-		this.remove()
+	self.close = function () {
+		self.remove()
 			
-		if ( this.server ) {
-			this.server.close ();
-			this.server = null;
+		if ( self.server ) {
+			self.server.close ();
+			self.server = null;
 		}
 		
 	};
 };
 
-HortenOSC.prototype.addClient = function ( address, port, push ) {
+
+
+
+OSC.prototype.Client = function ( url ) {
+	var self = this;
+
+}
+
+OSC.prototype.addClient = function ( address, port, push ) {
 	var clientName = address + ':' + port;
 
 	if ( !this.clients )
@@ -72,62 +87,117 @@ HortenOSC.prototype.addClient = function ( address, port, push ) {
 	this._pushOnlyToClient
 }
 
-HortenOSC.sendToClient = function ( client, value, path ) {
+OSC.sendToClient = function ( client, value, path ) {
 
 }
 
-HortenOSC.prototype.onData = function ( value, path, method, origin ) {
-	if ( !this.clients )
+OSC.prototype.onData = function ( value, path, method, origin ) {
+	var self = this;
+
+	if ( !self.clients )
 		return;
 
-	var that = this;
 	var pathStr = path.string;
 
-	if ( this.treatAsArray ) {
-		for ( var i = 0; i < this.treatAsArray.length; i ++ ) {
-			var wildcard = this.treatAsArray[i];
+	if ( self.treatAsArray ) {
+		for ( var i = 0; i < self.treatAsArray.length; i ++ ) {
+			var wildcard = self.treatAsArray[i];
 			var firstPart = pathStr.substr ( 0, wildcard.length );
 
 			if ( firstPart == wildcard ) {
 				var index = parseInt ( pathStr.substr ( wildcard.length ) );
-				firstPart = HortenOSC.OSCPathString ( firstPart );
-				if ( !this._arrayValues )
-					this._arrayValues = {};
+				firstPart = OSC.pathString ( firstPart );
+				if ( !self._arrayValues )
+					self._arrayValues = {};
 
-				if ( !this._arrayValues[firstPart] )
-					this._arrayValues[firstPart] = [];
+				if ( !self._arrayValues[firstPart] )
+					self._arrayValues[firstPart] = [];
 
-				this._arrayValues[firstPart][index] = HortenOSC.OSCPrimitiveValue( value );
+				self._arrayValues[firstPart][index] = OSC.primitive( value );
 
-				if ( !this._arraySend )
-					this._arraySend = {};
+				if ( !self._arraySend )
+					self._arraySend = {};
 
-				this._arraySend[firstPart] = true;
+				self._arraySend[firstPart] = true;
 
 				process.nextTick ( function () {
-					that.sendArrays ();
+					self.sendArrays ();
 				});
-
 				return;
 			}
 		}
 	}
 
-	var k;
-	for ( k in this.clients ) {
-		var client = this.clients[k];
-			
-		var msg = new osc.Message ( 
-			HortenOSC.OSCPathString( path ), 
-			HortenOSC.OSCPrimitiveValue ( value ) 
-		);
+	self.send ( value, path );
+}
+
+OSC.prototype.send = function ( value, path, excludeClient ) {
+	var self = self;
+	var msg = OSC.message( value, path );
+
+	for ( var k in self.clients ) {
+		var client = self.clients[k];
+		if ( client == excludeClient )
+			continue;	
 
 		//console.log ( "msg "+msg.typetags+" "+value );
-		client.send ( msg );		
+		client.sendMsg ( msg );		
 	}
 }
 
-HortenOSC.OSCPathString = function ( path ) {
+OSC.prototype.sendArrays = function () {
+	var self = this;
+	if ( self._arraySend ) {
+		var path;
+		for ( path in self._arraySend ) {
+			for ( k in self.clients ) {
+				var client = self.clients[k];
+				var arr = self._arrayValues[path];
+				var msg = new osc.Message (	path );
+
+				for ( var i = 0; i < arr.length; i ++ ) 
+					msg.append ( arr[i] );
+
+				client.send ( msg );		
+			}			
+		}
+		self._arraySend = {};
+	}
+}
+
+// 	------
+//	Client	
+//	------
+
+OSC.Client = function ( url, path ) {
+	var opt = Argue( arguments, 'url', Path, { primitive: true } ),
+		self = this;
+
+	self.osc = new osc.Client ( address, port );
+	Listener.call( self, opt, self.onData );
+}
+
+OSC.Client.prototype.onData = function ( value, path ) {
+
+}
+
+OSC.Client.prototype.send = function ( value, path ) {
+	path = Path( self.prefix )
+}
+
+OSC.Client.prototype.sendMsg = function ( msg ) {
+
+} 
+
+util.inherits( OSC.Client, Listener );
+
+
+// ------------------
+// Protocol Utilities
+// ------------------
+
+
+OSC.pathString = function ( path ) {
 	path = Path ( path ).string;
 	if ( path.substr ( path.length - 1 ) == '/' )
 		path = path.substr ( 0, path.length - 1 );
@@ -135,7 +205,14 @@ HortenOSC.OSCPathString = function ( path ) {
 	return path;
 }
 
-HortenOSC.OSCPrimitiveValue = function ( value ) {
+OSC.message = function ( value, path ) {
+	return new osc.Message ( 
+		OSC.pathString( path ), 
+		OSC.primitive ( value ) 
+	);
+}
+
+OSC.primitive = function ( value ) {
 	// Okay, this is seriously fucked up, and assumes
 	// that whatever is on the other end of OSC only
 	// really cares about number values.
@@ -147,21 +224,3 @@ HortenOSC.OSCPrimitiveValue = function ( value ) {
 	return value;
 }
 
-HortenOSC.prototype.sendArrays = function () {
-	if ( this._arraySend ) {
-		var path;
-		for ( path in this._arraySend ) {
-			for ( k in this.clients ) {
-				var client = this.clients[k];
-				var arr = this._arrayValues[path];
-
-					
-				var msg = new osc.Message (	path );
-				for ( var i = 0; i < arr.length; i ++ ) 
-					msg.append ( arr[i] );
-				client.send ( msg );		
-			}			
-		}
-		this._arraySend = {};
-	}
-}

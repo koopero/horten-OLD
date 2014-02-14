@@ -1,12 +1,17 @@
+// #ifdef NODE
+module.exports = Connection;
+var Listener = require('./Listener.js' );
+var inherits = require('util').inherits;
+// #endif
+
+inherits( Connection, Listener );
+
 function Connection ( config ) {
 	config.primitive = true;
-
 	this.keepAlive = config.keepAlive;
-	
+
 	Listener.call ( this, config );
 }
-
-Connection.prototype = new Listener( null );
 
 /** 
  * Queue one or more paths to pull from the server. This will ask the server
@@ -20,32 +25,35 @@ Connection.prototype = new Listener( null );
  */
 Connection.prototype.pull = function ( path )
 {
+	var self = this;
 	path = Path( path ).string;
 
-	if ( !this._pullPaths )
-		this._pullPaths = [];
+	if ( !self._pullPaths )
+		self._pullPaths = [];
 	
-	if ( this._pullPaths.indexOf ( path ) == -1 )
-		this._pullPaths.push ( path );
+	if ( self._pullPaths.indexOf ( path ) == -1 )
+		self._pullPaths.push ( path );
 	
-	this._pull ();
+	self._pull ();
 };
 
 Connection.prototype._pull = function () 
 {
-	if ( !this._pullPaths || !this._pullPaths.length )
+	var self = this;
+
+	if ( !self._pullPaths || !self._pullPaths.length )
 		return;
 
-	if ( !this.readyToSend () ) {
+	if ( !self.readyToSend () ) {
 		return;
 	}
 	
 	var msg = {
-		get: this._pullPaths
+		get: self._pullPaths
 	};
 
-	if ( this.send ( msg ) ) {
-		this._pullPaths = null;
+	if ( self.send ( msg ) ) {
+		self._pullPaths = null;
 	} 
 
 }
@@ -53,41 +61,44 @@ Connection.prototype._pull = function ()
 
 Connection.prototype.push = function ( path )
 {
+	var self = this;
 	path = Path ( path );
 
-	if ( !this._pushData )
-		this._pushData = {};
+	if ( !self._pushData )
+		self._pushData = {};
 
-	this._pushData[path] = this.FILL_DATA;
-	this._push();
+	self._pushData[path] = self.FILL_DATA;
+	self._push();
 }
 
 Connection.prototype._push = function ()
 {
-	if ( !this._pushData )
+	var self = this;
+
+	if ( !self._pushData )
 		return;
 
-	if ( !this.readyToSend() ) {
+	if ( !self.readyToSend() ) {
 		return;
 	}
 
 	var somethingToSend = false;
 	
-	for ( var remotePath in this._pushData ) {
+	for ( var remotePath in self._pushData ) {
 		
 		somethingToSend = true;
 		
-		if ( this._pushData[ remotePath ] == this.FILL_DATA ) {
-			this._pushData[ remotePath ] = this.get ( remotePath );
+		if ( self._pushData[ remotePath ] == self.FILL_DATA ) {
+			self._pushData[ remotePath ] = self.get ( remotePath );
 		}
 	}
 	
 
 	if ( somethingToSend ) {
-		this.send ( { set: this._pushData } );
+		self.send ( { set: self._pushData } );
 	}
 	
-	this._pushData = {};	
+	self._pushData = {};	
 }
 
 Connection.prototype.readyToSend = function ()
@@ -102,29 +113,32 @@ Connection.prototype.readyToSend = function ()
 
 Connection.prototype.onRemoteClose = function ()
 {	
-	var that = this;
-	if ( this.keepAlive && 'function' == typeof this.reconnect ) {
-		console.log ( that.name, 'Remote closed, retrying in 1 second' );
+	var self = this;
+
+	if ( self.keepAlive && 'function' == typeof self.reconnect ) {
+		console.log ( self.name, 'Remote closed, retrying in 1 second' );
 
 		setTimeout ( function () {
-			that.reconnect ();
+			self.reconnect ();
 		}, 1000 );
 	} else {
-		console.log ( that.name, 'Closed by remote' );
+		console.log ( self.name, 'Closed by remote' );
 		
-		this.close();
+		self.close();
 	}
 }
 
 Connection.prototype.onData = function ( value, path )
 {
-	if ( !this._pushData )
-		this._pushData = {};
+	var self = this;
+
+	if ( !self._pushData )
+		self._pushData = {};
 	
-	this._pushData[path] = value;
+	self._pushData[path] = value;
 
 	// Should delay push here
-	this._push();
+	self._push();
 }
 
 Connection.prototype.onRemoteData = function ( msg ) {
@@ -180,29 +194,29 @@ Connection.prototype.close = function ()
 //
 
 Connection.prototype.attachWebSocket = function ( websocket ) {
-	var that = this;
+	var self = this;
 	
 	websocket.onopen = function () 
 	{
-		console.log ( that.name, 'Open WS' );
-		that._push ();
-		that._pull ();
+		console.log ( self.name, 'Open WS' );
+		self._push ();
+		self._pull ();
 	};
 	
 	websocket.onerror = function ( error ) 
 	{
-		console.log ( that.name, "WS error " +JSON.stringify(error) );
+		console.log ( self.name, "WS error " +JSON.stringify(error) );
 	};
 	
 	websocket.onmessage = function ( msg )
 	{
-		that.onRemoteData ( msg.data );		
+		self.onRemoteData ( msg.data );		
 	};
 	
 	websocket.onclose = function ()
 	{
-		//console.log ( that.name, "onclose" );
-		that.onRemoteClose ();
+		//console.log ( self.name, "onclose" );
+		self.onRemoteClose ();
 	};	
 
 	this.readyToSend = function () {
@@ -225,14 +239,14 @@ Connection.prototype.attachWebSocket = function ( websocket ) {
 	}
 
 	if ( websocket.readyState == 1 ) {
-		that._push ();
-		that._pull ();
+		self._push ();
+		self._pull ();
 	}
 }
 
 Connection.prototype.attachSockJSClient = function ( sock, remotePath, config ) {
-	that = this;
-	that.sockJS = sock;
+	var self = this;
+	self.sockJS = sock;
 	remotePath = Path ( remotePath ).string;
 		
 	sock.onopen = function () {
@@ -245,25 +259,25 @@ Connection.prototype.attachSockJSClient = function ( sock, remotePath, config ) 
 		try {
 			msg = JSON.parse ( msg.data );
 		} catch ( e ) {
-			console.log ( that.name, "Bad JSON in server path response", msg );
+			console.log ( self.name, "Bad JSON in server path response", msg );
 			sock.close();
-			that.onRemoteClose ()
+			self.onRemoteClose ()
 			return;
 		}
 
 		if ( msg ) {
-			that.attachWebSocket ( sock );
-			that.onRemoteData ( msg );
+			self.attachWebSocket ( sock );
+			self.onRemoteData ( msg );
 		} else {
-			console.log ( that.name, "Didn't get path handshake from server" );
+			console.log ( self.name, "Didn't get path handshake from server" );
 			sock.close ();
-			that.onRemoteClose ();
+			self.onRemoteClose ();
 		}
 	}
 
 	sock.onclose = function () {
-		console.log ( that.name, "Didn't get path handshake from server" );
-		that.onRemoteClose ();
+		console.log ( self.name, "Didn't get path handshake from server" );
+		self.onRemoteClose ();
 	}
 
 	sock.onerror = function () {
