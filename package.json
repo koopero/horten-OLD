@@ -20,7 +20,7 @@
   "bugs": {
     "url": "https://github.com/koopero/horten/issues"
   },
-  "main": "src/Horten.js",
+  "main": "./index.js",
   "bin": {
     "horten-server": "bin/horten-server"
   },
@@ -39,6 +39,7 @@
     "grunt-contrib-copy": "0.x.x",
     "grunt-contrib-uglify": "0.x.x",
     "grunt-simple-mocha": "0.x.x",
+    "grunt-preprocessor": "~0.4.0",
     "should": "1.x.x"
   },
   "bundledDependencies": [],

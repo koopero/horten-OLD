@@ -1,14 +1,19 @@
 /** Create a server which will accept both http and web socket connections. */
 
-var Http = require('http');
-var Https = require('https');
-var fs = require('fs');
+var Http = require('http'),
+	Https = require('https'),
+	fs = require('fs'),
+	extend = require('util')._extend,
+	urllib = require('url');
 
-var extend = require('util')._extend;
+var 
+	Connection = require('./Connection.js'),
+	Listener = require('./Listener.js'),
+	Path = require('./Path.js');
 
-var Url = require('url');
+module.exports = Server;
 
-Horten.Server = function ( options ) {
+function Server ( options ) {
 	var server = this;
 
 	options = options || {};
@@ -16,7 +21,7 @@ Horten.Server = function ( options ) {
 
 	if ( options.url ) {
 		if ( 'string' == typeof options.url )
-			options.url = urlParse ( options.url );
+			options.url = urllib.parse ( options.url );
 
 		options.port = options.url.port;
 		options.hostname = options.url.hostname;
@@ -33,7 +38,7 @@ Horten.Server = function ( options ) {
 	if ( prefix.charAt(prefix.length-1) != '/' )
 		prefix += '/';
 
-	var horten = options.horten || Horten.instance();
+	var horten = options.horten || instance();
 	server.log = horten.log;
 
 	options.path = Path( options.path );
@@ -45,10 +50,12 @@ Horten.Server = function ( options ) {
 		pathname: prefix
 	};
 
-	this.clientJSUrl = Url.format ( extend ( { protocol: 'http', search: '?js' }, server.url ) );
+	this.clientJSUrl = urllib.format ( extend ( { protocol: 'http', search: '?js' }, server.url ) );
 
 
-	
+	server.loadIncludes();
+
+
 
 	var listener = new Listener ( {
 		path: options.path,
@@ -74,18 +81,7 @@ Horten.Server = function ( options ) {
 		return auth;
 	}
 
-	/* Build the client JS. */
-	var clientIncludes = {
-		'sockJS': options.minify ? '../ext/sockjs-0.3.min.js' : '../ext/sockjs-0.3.js', 
-		'horten': 'horten-client.js'
-	};
 
-	for ( var k in clientIncludes ) {
-		clientIncludes[k] = fs.readFileSync( 
-			require('path').join( __dirname, clientIncludes[k] ),
-			'utf8' 
-		);
-	}
 
 
 	function clientJS ( path, url ) {
@@ -139,13 +135,13 @@ Horten.Server = function ( options ) {
 			return true;
 		}
 
-		var url = urlParse( req.url, true, true );
+		var url = urllib.parse( req.url, true, true );
 		if ( url.query.js != undefined ) {
 			res.writeHead(200, {
 				"Content-Type": "text/javascript"
 			});
-			res.write ( clientIncludes.sockJS );
-			res.write ( clientIncludes.horten );
+			res.write ( server.include( 'sockjs.js' ) );
+			res.write ( server.include( 'horten.js' ) );
 			res.end( clientJS ( path, url ) );
 			return true;
 		}
@@ -254,7 +250,7 @@ Horten.Server = function ( options ) {
 
 	
 	function localPathFromRequest ( req ) {
-		var url = urlParse( req.url );
+		var url = urllib.parse( req.url );
 		var path = url.pathname;
 
 		if ( !prefix )
@@ -312,26 +308,6 @@ Horten.Server = function ( options ) {
 
 	this.listenHttps = function ( options ) {
 		
-	}
-
-	this.listenHSS = function ( port ) {
-		var server = require('net').createServer( function (socket) {
-			console.log ( "Connected" );
-
-			socket.on('end', function () {
-				listener.remove();
-				console.log ( "Disconnected" );
-			});
-
-			var listener = new Connection ( {
-				path: options.path
-			});
-			listener.attach_hss ( socket );
-			
-			//socket.end();
-		});
-
-		server.listen( port );
 	}
 
 	var sockJS;
@@ -532,56 +508,39 @@ Horten.Server = function ( options ) {
 	}
 
 	return server;
+}
 
+Server.prototype.loadIncludes = function () { 
+	var 
+		self = this,
+		pathlib = require('path')
+		includePath = pathlib.resolve( __dirname, '../lib/' ),
+		fs = require('fs'),
+		includes = fs.readdirSync( includePath );
 
+	self.includes = self.includes || {};
+
+	console.log ( "INCLUDES", includes );
+
+	for ( var k in includes ) {
+		var filename = includes[k];
+		self.includes[filename] = fs.readFileSync( 
+			pathlib.join( includePath, filename ),
+			'utf8' 
+		);
+	}
+}
+
+Server.prototype.include = function ( k ) {
+	var self = this;
+
+	return self.includes[k] || '';
 }
 
 
-
-/*
-	Dead code for connection with Worlize/websocket-node, which is
-	nice and all, but einaros/ws is looser and more flexible.
-*/
-/*
-Connection.prototype.attach_websocket = function ( websocket ) 
-{
-	var connection = this;
-
-	connection.websocket = websocket;
-
-	websocket.on('message', function(message) {
-		connection.onRemoteData ( message.utf8Data );
-	});
-	
-	websocket.on('close', function () {
-		if ( connection.log )
-			connection.log( connection.name, 'closed');
-
-		connection.onRemoteClose ();
-	});
-
-	this.readyToSend = function () {
-		return websocket;
-	}
-
-	this.send = function ( msg ) {
-		if ( !websocket )
-			return false;
-
-		msg = JSON.stringify ( msg );
-		websocket.sendUTF ( msg );
-		return true;
-	}
-
-	this._close = function () {
-		websocket.close ();
-		websocket = null;
-	}
-
-
-	this.attach ();
+function instance () {
+	return require('./Horten.js').instance();
 }
-*/
 
 
 /**
@@ -709,46 +668,6 @@ Connection.prototype.attachSockJSServer = function ( connection )
 	console.log ( that.name, 'Accepted SockJS connection' );
 }
 
-/**
- * Accept a connection for a remote WebSocket Client.
- * @param connection
- */
-Connection.prototype.attach_hss = function ( socket ) 
-{
-	var that = this;
 
-	that.hssSocket = socket;
-	that.name = "hss:"+socket.remoteAddress;
-
-	
-	socket.on('end', function () {
-		that.onRemoteClose ();
-	});
-
-	this.readyToSend = function () {
-		return !!socket;
-	}
-
-	this.send = function ( msg ) {
-		console.log ( that.name, 'Writing hss' );
-		var content = new Buffer( JSON.stringify( msg ) );
-		var header = new Buffer( 4 );
-		header.writeUInt32BE( content.length, 0 );
-		socket.write( Buffer.concat( [ header, content ] ) );
-
-		return true;
-	}
-
-	this._close = function () {
-		socket.destroy();
-		socket = null;
-	}
-
-
-	this.attach ();
-	console.log ( that.name, 'Accepted HSS connection' );
-
-	this.push();
-}
 
 

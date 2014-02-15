@@ -8,7 +8,10 @@ describe('Path', function() {
 	it('should make a working path object from a string',function(){
 		var P = H.Path ( 'foo/bar' );
 		P.string.should.equal('/foo/bar/');
-		P.array.should.eql(['foo','bar']);
+		P[0].should.eql('foo');
+		P[1].should.eql('bar');
+		P.length.should.eql(2);
+			
 	})
 
 	it('should make a working path object from an array', function () {
@@ -24,7 +27,8 @@ describe('Path', function() {
 
 	it('should default to "/"', function () {
 		H.Path().string.should.eql('/');
-		H.Path( null ).array.should.eql([]);
+		assert.equal( H.Path( null )[0], undefined );
+		assert.equal( H.Path( undefined ).length, 0 );
 	});
 
 	it('should deal with stupid or irregular input', function () {

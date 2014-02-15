@@ -17,7 +17,7 @@ describe ( 'Horten', function () {
 		});
 	});
 
-	describe ( '#walkObject()', function () {
+	describe ( '#walk()', function () {
 		var testOb = {
 			'path': {
 				'one': 1,
@@ -26,10 +26,10 @@ describe ( 'Horten', function () {
 			'three': 3
 		}
 		it ('should walk an object', function () {
-			H.walkObject ( testOb ).should.eql ( testOb );
-			H.walkObject ( testOb, 'path/one' ).should.eql ( 1 );
-			should.strictEqual ( H.walkObject ( testOb, 'four' ), undefined );
-			H.walkObject ( testOb, 'path', true ).should.equal ( testOb['path'] );
+			H.walk ( testOb ).should.eql ( testOb );
+			H.walk ( testOb, 'path/one' ).should.eql ( 1 );
+			should.strictEqual ( H.walk ( testOb, 'four' ), undefined );
+			H.walk ( testOb, 'path', true ).should.equal ( testOb['path'] );
 		});
 	});
 

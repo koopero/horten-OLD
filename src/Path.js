@@ -45,64 +45,69 @@ var instance = function () {
 // #endif
 
 
-function Path ( parse ) {
-  	// If the input given is already a parsed path,
+
+function Path ( path ) {
+  	// If the input given is already a pathd path,
  	// return it unchanged.
- 	if ( parse && parse.constructor == Path ) {
- 		return parse;
+ 	if ( path && arguments.length == 1 && path.constructor == Path ) {
+ 		return path;
  	}
 
   	// Can be called as either Path or new Path
  	if ( this.constructor != Path ) {
- 		return new Path ( parse );
+ 		return new Path ( path );
+ 	}
+
+ 	var self = this;
+
+ 	self.string = '/';
+ 	self.length = 0;
+ 	parse( arguments );
+
+ 	function parse( token ) {
+ 		if ( token === null )
+ 			return;
+
+ 		var t = typeof token;
+ 		if ( t == 'object' ) {
+ 			var i = 0;
+ 			while ( token[i] !== undefined ) {
+ 				parse( token[i] );
+ 				i++;
+ 			}
+ 		} else if ( t == 'number' || t == 'boolean' ) {
+ 			append( String( token ) );
+ 		} else if ( t == 'string' ) {
+ 			parseString( token );
+ 		}
+ 	}
+
+ 	function parseString ( str ) {
+ 		var s = 0, e, l = str.length;
+ 		while ( s < l ) {
+ 			
+ 			if ( str[s] == '/' ) {
+ 				s++;
+ 				continue;
+ 			}
+
+			e = str.indexOf( '/', s );
+
+			if ( e == -1 )
+				e = str.length;
+
+			append( str.substr( s, e - s ) );
+			s = e + 1;
+ 		}
+ 	}
+
+ 	function append ( str ) {
+ 		self[self.length] = str;
+		self.length ++;
+		self.string += str + '/';
  	}
  	
- 	// Convert to string
- 	var str, arr;
- 	if ( parse == null || parse == undefined ) {
- 		str = '/';
-	} else if ( Array.isArray ( parse ) ) {
-    	str = parse.join('/');
-	} else {
-		// I'm kind of iffy about this...
-		str = String ( parse );
-	}
-
-	// Normalize string
-	if ( str != '/' ) {
-		// Get rid of double slashes
-		str = str.replace( /\/+/g, '/' );
-
-		// Ensure leading slash
-		if ( str.charAt(0,1) != '/' )
-			str = '/'+str;
-
-		// Ensure trailing slash
-		if ( str.charAt(str.length - 1) != '/' )
-			str = str+'/';
-	}
-
-
-	//memo[str] = this;
-
-	// Get array
-	if ( str == '/') {
-		arr = [];
-	} else {
-		arr = str.substr ( 1, str.length - 2 ).split ( '/' );
-	}
-
-	for ( var i = 0; i < arr.length; i ++ ) {
-		this[i] = arr[i];
-	}
-
-
-	this.slice = function ( start, end ) {
-		return arr.slice ( start, end );
-	}
- 	this.string = str;
- 	this.array = arr;
- 	this.length = arr.length;
+ 	return self;
 }
  
 Path.prototype.seg = function ( i ) {
@@ -115,7 +120,7 @@ Path.prototype.seg = function ( i ) {
 //	--------------------
 
 Path.prototype.set = function ( value, path, flags, origin, horten ) {
-	horten = horten || this.horten || Horten.instance();
+	horten = horten || this.horten || instance();
 
 	if ( path == undefined )
 		return horten.set( value, this, flags, origin );
@@ -126,7 +131,7 @@ Path.prototype.set = function ( value, path, flags, origin, horten ) {
 }
 
 Path.prototype.get = function ( path, horten ) {
-	horten = horten || this.horten || Horten.instance();
+	horten = horten || this.horten || instance();
 
 	if ( path == undefined )
 		return horten.get( this );
@@ -139,6 +144,33 @@ Path.prototype.get = function ( path, horten ) {
 
 Path.prototype.append = function ( postfix ) {
 	return Path(this.string + postfix);
+}
+
+Path.prototype.slice = function ( i, length ) {
+	var 
+		self = this,
+		ret = new Path();
+
+	i = parseInt( i );
+	length = parseInt( length );
+
+	if ( length === undefined ) 
+		length = self.length;
+
+	while ( i < self.length && length ) {
+ 		ret[ret.length] = self[i];
+		ret.length ++;
+		ret.str += str + '/';
+		i++;
+		length --;
+	}
+
+
+	function append ( str ) {
+ 		self[self.length] = str;
+		self.length ++;
+		self.string += str + '/';
+ 	}
 }
 
 /**

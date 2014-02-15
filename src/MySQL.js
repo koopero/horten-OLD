@@ -3,6 +3,7 @@ var osc = require ( 'node-osc' ),
 	util = require ( 'util' );
 
 var 
+	Horten = require('./Horten.js'),
 	Listener = require( './Listener.js' ),
 	Path = require( './Path.js');
 

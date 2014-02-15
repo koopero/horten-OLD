@@ -5,11 +5,19 @@
 
 // #ifdef NODE
 var 
-	Horten = require('./Horten.js'),
 	Path = require('./Path.js');
 
+function instance () {
+	return require('./Horten.js').instance();
+}
+
+var flatten = function () {
+	flatten = require('./Horten.js').flatten;
+	return flatten.apply( this, arguments );
+}
+
 module.exports = Listener;
-// #endif 
+// #endif
 
 /** 
 	options = {
@@ -34,7 +42,7 @@ function Listener ( options, onData )
 		self.prefix = Path( options.prefix );
 
 		self.primitive = !!options.primitive;
-		self.horten = options.horten || Horten.instance();
+		
 		
 		if ( options.debug )
 			self.debug = true;
@@ -42,8 +50,10 @@ function Listener ( options, onData )
 		if ( 'function' == typeof onData )
 			self.onData = onData;
 
-		if ( options.attach !== false )
+		if ( options.attach !== false ) {
+			self.horten = options.horten || instance();
 			self.attach ();
+		}
 
 	}
 };
@@ -56,7 +66,7 @@ Listener.prototype.attach = function ( horten )
 	} 
 
 	if ( !self.horten )
-		self.horten = Horten.instance();
+		self.horten = instance();
 
 	self.horten.attachListener ( self );
 }
@@ -70,13 +80,14 @@ Listener.prototype.remove = function ()
 
 Listener.prototype.push = function ()
 {
-	var self = this;
+	var self = this,
+		horten = self.horten || instance();
 
 	if ( !self.primitive ) {
-		self.onData ( self.horten.get( self.path ), Path ( self.prefix ), 'push', self );
+		self.onData ( horten.get( self.path ), Path ( self.prefix ), 'push', self );
 	} else {
-		var d = self.horten.get ( self.path, true ), k;
-		d = Horten.flatten( d );
+		var d = horten.get ( self.path, true ), k;
+		d = flatten( d );
 
 		for ( k in d ) {
 			self.onData ( d[k], Path ( k ).translate ( null, self.prefix ) );
@@ -92,7 +103,7 @@ Listener.prototype.get = function ( path )
 	path = Path ( path ).translate ( this.prefix, this.path );
 
 	if ( !this.horten )
-		this.horten = Horten.instance();
+		this.horten = instance();
 
 	if ( path ) {
 		return this.horten.get ( path );
@@ -109,7 +120,7 @@ Listener.prototype.set = function ( value, path, flags )
 	path = Path ( path ).translate ( this.prefix, this.path );
 
 	if ( !this.horten )
-		this.horten = Horten.instance();
+		this.horten = instance();
 
 	if ( path ) 
 		return this.horten.set ( value, path, flags, this );

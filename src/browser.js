@@ -1,5 +1,6 @@
+// UTILS
 /* It won't hanlde half the shit require('url').parse will, but it'll work in a pinch. */
-var urlParse = function ( url, parseQueryString ) {
+function urlParse ( url, parseQueryString )  {
 	var urlReg = /^((\w+:)\/)?\/?((.*?)@)?(([^:\/\s]+)(:(\d+))?)(([^?#]*)(\?([^#]*))?)(#.*)?/
 	var m = urlReg.exec( url );
 

@@ -1,10 +1,13 @@
-var osc = require ( 'node-osc' ),
+var 
+	os = require('os'),
+	osc = require ( 'node-osc' ),
 	urllib = require( 'url' ),
 	util = require ( 'util' );
 
 var 
 	Argue = require('./Argue.js'),
-	Listener = require( './Listener.js' );
+	Listener = require( './Listener.js' ),
+	Path = require('./Path.js');
 
 util.inherits( OSC, Listener );
 module.exports = OSC;
@@ -12,42 +15,30 @@ module.exports = OSC;
 
 function OSC ( url, path ) {
 
-	var conf = Argue( arguments, 'url', Path, { primitive: true } );
+	var conf = Argue( arguments, {
+		treatAsArray: []
+	}, '$url', 'path', { 
+		primitive: true,
+	} );
+
+	if ( this.constructor != OSC ) {
+		return new OSC( conf );
+	}
+
 	var self = this;
+	
 
 	Listener.call ( self, conf, self.onData );
 	
 	//console.log ( 'OSC', conf );
-	self.name = 'osc';
+	self.clients = {};
 	self.autoClient = parseInt( conf.autoClient );
 	self.treatAsArray = conf.treatAsArray;
 	
+
+
 	if ( conf.url ) {
-
-		var listen = urllib.parse( conf.url );
-		
-		self.name = 'osc://:'+conf.server.port;
-		console.log ( "listening to osc", conf.server.port );
-
-		self.server = new osc.Server ( listen.port, listen.hostname );
-		self.server.on ( "message", function ( decoded, rinfo ) {
-			
-			var path = decoded[0];
-
-			//console.log ( 'decoded', decoded );
-			var value = decoded.length == 2 ? decoded[1] : decoded.slice(1);
-
-			if ( path ) {
-				self.name = 'osc://'+rinfo.address;
-				self.set ( value, path);
-			}
-
-			if ( self.autoClient ) {
-				self.addClient( rinfo.address, self.autoClient, true )
-			}
-
-		} );
-		
+		self.listen( conf.url );	
 	}
 
 	if ( conf.client && conf.client.host && conf.client.port ) {
@@ -63,14 +54,69 @@ function OSC ( url, path ) {
 		}
 		
 	};
+
+	return self;
 };
 
-
-
-
-OSC.prototype.Client = function ( url ) {
+OSC.prototype.listen = function ( url ) {
 	var self = this;
 
+	if ( 'number' == typeof url )
+		url = {	port: url };
+
+	if ( 'object' != typeof url )
+		url = parseUrl ( url );
+
+	url.hostname = url.hostname || os.hostname();
+
+	self.url = 'osc://'+url.hostname+':'+url.port;
+	self.name = self.url;
+
+	self.server = new osc.Server ( url.port, url.hostname );
+	self.server.on ( "message", function ( decoded, rinfo ) {
+		
+		var path = Path( decoded[0] ),
+			value = decoded.length == 2 ? decoded[1] : decoded.slice(1);
+
+
+		switch ( path[0] ) {
+			case '$listen':
+				var clientUrl = urllib.parse( path[1], true ).query;
+				clientUrl.protocol = 'osc:';
+				clientUrl.hostname = rinfo.address;
+
+				var client = self.Client( clientUrl, true );
+				
+				if ( clientUrl.push || clientUrl.push === '' )
+					client.push();
+				
+			return;
+		}
+
+		self.name = "oscIn://"+rinfo.address;
+		self.set ( value, path );
+		self.send( value, path );
+
+	} );
+}
+
+OSC.prototype.Client = function ( url, create ) {
+	var self = this,
+		name = urllib.format( url );
+
+	if ( !self.clients[ name ] ) {
+		if ( !create )
+			return;
+
+		self.clients[ name ] = new Client ( {
+			url: url,
+			attach: false
+		});
+
+		console.warn ( self.clients );
+	}
+
+	return self.clients[ name ];
 }
 
 OSC.prototype.addClient = function ( address, port, push ) {
@@ -87,9 +133,6 @@ OSC.prototype.addClient = function ( address, port, push ) {
 	this._pushOnlyToClient
 }
 
-OSC.sendToClient = function ( client, value, path ) {
-
-}
 
 OSC.prototype.onData = function ( value, path, method, origin ) {
 	var self = this;
@@ -132,15 +175,14 @@ OSC.prototype.onData = function ( value, path, method, origin ) {
 }
 
 OSC.prototype.send = function ( value, path, excludeClient ) {
-	var self = self;
-	var msg = OSC.message( value, path );
+	var self = this,
+		msg = OSC.message( value, path );
 
 	for ( var k in self.clients ) {
 		var client = self.clients[k];
 		if ( client == excludeClient )
 			continue;	
 
-		//console.log ( "msg "+msg.typetags+" "+value );
 		client.sendMsg ( msg );		
 	}
 }
@@ -169,28 +211,39 @@ OSC.prototype.sendArrays = function () {
 //	Client	
 //	------
 
-OSC.Client = function ( url, path ) {
-	var opt = Argue( arguments, 'url', Path, { primitive: true } ),
+util.inherits( Client, Listener );
+function Client ( url, path ) {
+	var opt = Argue( arguments, '$url', 'path', { primitive: true } ),
 		self = this;
 
-	self.osc = new osc.Client ( address, port );
+	if ( self.constructor != Client ) {
+		return new Client( opt );
+	}
+
+	self.osc = new osc.Client ( opt.url.hostname, opt.url.port );
 	Listener.call( self, opt, self.onData );
+
+	return self;
 }
 
-OSC.Client.prototype.onData = function ( value, path ) {
+Client.prototype.onData = function ( value, path ) {
 
 }
 
-OSC.Client.prototype.send = function ( value, path ) {
-	path = Path( self.prefix )
+Client.prototype.send = function ( value, path ) {
+	var self = this;
+
+	self.osc.send( OSC.message( value, path ) );
 }
 
-OSC.Client.prototype.sendMsg = function ( msg ) {
+Client.prototype.sendMsg = function ( msg ) {
+	var self = this;
 
+	self.osc.send( msg );
 } 
 
-util.inherits( OSC.Client, Listener );
 
+OSC.Client = Client;
 
 // ------------------
 // Protocol Utilities

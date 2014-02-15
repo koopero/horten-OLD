@@ -65,50 +65,49 @@ module.exports = function(grunt) {
 	grunt.initConfig({
 		pkg : config.pkg,
 		clean : {
-			dist : ['dist/*.js'],
-
+			templated: ['lib/horten.js', 'lib/horten.min.js'],
 		},
-		concat : {
-			options : {
-				stripBanners : true,
-				banner : config.banner
+		preprocessor: {
+			options: {
+				root: "src",
+				context: {
+					DEBUG: true
+				}
 			},
-			dist : {
-				src : config.sources,
-				dest : 'dist/horten.js'
-			}, 
+			templates: {
+				files: {
+					'lib/horten.js':  'template/horten.js'
+				}
+			}
+		},
+		uglify : {
+			options : { mangle : true },
 			client : {
-				src : config.clientSources,
-				dest : 'dist/horten-client.js'
+				files : {
+					'lib/horten.min.js' : 'lib/horten.js'
+				}
 			}
 		},
 		simplemocha: {
 			options: {
-				globals: ['should'],
+				globals: ['should','__HortenInstance'],
 				timeout: 3000,
 				ignoreLeaks: false,
 				ui: 'bdd'
 			},
 			all: { src: config.tests }
 		},
-		uglify : {
-			options : { mangle : true },
-			client : {
-				files : {
-					'dist/horten-client.min.js' : 'dist/horten-client.js'
-				}
-			}
-		}
+
 	});
 
-	grunt.loadNpmTasks('grunt-contrib-concat');
 	grunt.loadNpmTasks('grunt-contrib-uglify');
 	grunt.loadNpmTasks('grunt-contrib-clean');
 	grunt.loadNpmTasks('grunt-contrib-copy');
 	grunt.loadNpmTasks('grunt-simple-mocha');
+	grunt.loadNpmTasks('grunt-preprocessor');
 
 	// Default task.
-	grunt.registerTask('default', ['clean', 'concat', 'uglify', 'simplemocha']);
+	grunt.registerTask('default', ['clean', 'preprocessor', 'uglify', 'simplemocha' ] );
 
 
 };
