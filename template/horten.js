@@ -1,4 +1,4 @@
-;var H = (function ( __globals ) {
+;var H = (function ( __global ) {
 // #include "browser.js"
 // #include "Path.js"
 // #include "Horten.js"

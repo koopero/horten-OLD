@@ -3,6 +3,7 @@ var osc = require ( 'node-osc' ),
 	util = require ( 'util' );
 
 var 
+	Argue = require('./Argue.js'),
 	Horten = require('./Horten.js'),
 	Listener = require( './Listener.js' ),
 	Path = require( './Path.js');
@@ -36,15 +37,37 @@ module.exports = MySQL;
 
 function MySQL ( config ) {
 
-	if ( 'string' == typeof config.connection ) {
-		var u = urlParse( config.connection );
+	var opt = Argue( arguments, {
+		connection: null,
+		table: 		false,
+		pathTable: 	false,
+		keepAlive: 	true,
+		timeOffset: 0,
+		timeQuant: 	1000,
+		history: 	false,
+		pathLength: 640,
+		debug: 		false,
+		columns: 	[ 'path', 'json' ],
+	}, '$url', 'path' );
+
+	var self = this;
+	self.opt = opt;
+
+	opt.connection = opt.connection || opt.url;
+
+	if ( self.constructor != MySQL ) {
+		return new MySQL( opt );
+	}
+
+	if ( 'string' == typeof opt.connection ) {
+		var u = urlParse( opt.connection );
 		var userPass = String(u.auth).split(':');
 		var urlPath = u.pathname.substr(1).split('/');
 
 		if ( urlPath.length != 2 )
 			throw new Error ( 'connection url must be in form mysql://user:pass@hostname/database/table' );
 
-		config.connection = {
+		opt.connection = {
 			host: u.hostname,
 			user: userPass[0],
 			port: u.port || 3306,
@@ -52,138 +75,70 @@ function MySQL ( config ) {
 			database: urlPath[0]
 		};
 
-		config.table = config.table || urlPath[ 1 ];
+		opt.table = opt.table || urlPath[ 1 ];
 	}
 
 
-	if ( config.timeOffset )
-		this.timeOffset = -Date.parse ( config.timeOffset );
-	else
-		this.timeOffset = 0;
-
-	if ( config.timeQuant )
-		this.timeQuant = parseFloat ( config.quantizeTime );
-	else
-		this.timeQuant = 1000;
+	
+	self.timeOffset = -Date.parse ( opt.timeOffset || 0 );
+	self.timeQuant = parseFloat ( opt.quantizeTime ) || 1000;
+	self.history = !!opt.history;
+	opt.pathLength = parseInt ( opt.pathLength );
 
 
-	this.history = !!config.history;
 
-	// Questionable magic number
-	this.pathLength = parseInt ( config.pathLength ) || 640;
+	opt.keepAlive = undefined == opt.keepAlive || !!opt.keepAlive;
 
-	// I <3 JS :P	
-	var that = this;
-
-	this.keepAlive = undefined == config.keepAlive || !!config.keepAlive;
-
-	this.primitive = config.primitive = true;
+	self.primitive = opt.primitive = true;
 
 	// Listener base
-	Listener.call( this, config, this.onData );
+	Listener.call( self, opt, self.onData );
 
-	this.debug = !!config.debug;
+
+	self.debug = !!opt.debug;
 
 	//
 	//	Apply defaults and parse connection and table parameters.
 	//
 
 	// The table which holds our paths
-	this.pathTable = config.pathTable ? String ( config.pathTable ) : false;
+	self.pathTable = opt.pathTable ? String ( opt.pathTable ) : false;
 
 	// The table which holds our data
-	this.dataTable = String ( config.table );
+	self.dataTable = String ( opt.table );
 
 
 
 	// The columns we're going to use. Includes special
 	// columns such as 'time'
-	if ( Array.isArray ( config.columns ) ) {
+	if ( Array.isArray ( opt.columns ) ) {
 		var cols = {};
-		for ( var i = 0; i < config.columns.length; i ++ ) {
-			var c = config.columns[i];
+		for ( var i = 0; i < opt.columns.length; i ++ ) {
+			var c = opt.columns[i];
 			cols[c] = c;
 		}
-		config.columns = cols;
+		opt.columns = cols;
 	}
 
-	this.columns = config.columns && typeof config.columns == 'object' ? config.columns : {};
+	var columns = self.columns = opt.columns && typeof opt.columns == 'object' ? opt.columns : {};
 
 	// Set default, required columns
 	var defaultCols = [ 'path', 'json' ];
 	
-	if ( this.pathTable )
+	if ( self.pathTable )
 		defaultCols.push ( 'pathId' );
 
-	if ( this.history )
+	if ( self.history )
 		defaultCols.push ( 'time' );
 
 	for ( var col in defaultCols ) {
 		col = defaultCols[col];
-		if ( !this.columns[col] || 'string' != typeof this.columns[col] )
-			this.columns[col] = col;
+		if ( !columns[col] || 'string' != typeof columns[col] )
+			columns[col] = col;
 	}
 
 
-
-	//
-	//	Assemble create table commands
-	//
-
-	var create = [];
-
-	if ( this.pathTable ) {
-		create.push ( 
-			'CREATE TABLE IF NOT EXISTS `'+this.pathTable+'` ('+
-			'`'+this.columns['pathId']+'` int(20) NOT NULL AUTO_INCREMENT, '+
-			'`'+this.columns['path']+'` varchar('+this.pathLength+') NOT NULL, '+
-			'PRIMARY KEY (`'+this.columns['pathId']+'`),'+
-			'UNIQUE KEY `'+this.columns['path']+'`  (`path`) '+
-			') ENGINE=InnoDB;'	
-		);
-	}
-
-	if ( this.dataTable ) {
-		var sql = 	'CREATE TABLE IF NOT EXISTS `'+this.dataTable+'` (';
-
-		var keyCol;
-		if ( this.pathTable ) {
-			keyCol = this.columns['pathId'];
-			sql += 	'`'+keyCol+'` int(20) NOT NULL AUTO_INCREMENT, ';
-		} else {
-			keyCol = this.columns['path'];
-			sql +=	'`'+keyCol+'` varchar('+this.pathLength+') NOT NULL, ';
-		}
-
-		if ( this.columns['time'] ) {
-			sql +=	'`'+this.columns['time']+'` BIGINT DEFAULT NULL, ';
-			sql += 	'KEY `'+this.columns['time']+'` ( `'+this.columns['time']+'` ), ';
-		}
-
-		if ( this.columns['number'] )
-			sql +=	'`'+this.columns['number']+'` double DEFAULT NULL, ';
-
-		if ( this.columns['json'] )
-			sql +=	'`'+this.columns['json']+'` text, ';
-
-		if ( this.columns.origin ) 
-			sql +=	'`'+this.columns.origin+'` varchar(255), ';
-
-		if ( this.columns.method ) 
-			sql +=	'`'+this.columns.method+'` char(8), ';
-		
-
-
-		if ( !this.history )
-			sql +=	'PRIMARY';
-
-		sql += 	' KEY `'+keyCol+'` (`'+keyCol+'`) ';
-		
-		sql += ') ENGINE=InnoDB;'
-
-		create.push ( sql );
-
-	}
+	
 
 	//
 	//	Initialize Connection
@@ -201,24 +156,27 @@ function MySQL ( config ) {
 		}
 
 		connection.on('error', function ( err ) {
-			that.horten.log ( that.name, 'error', JSON.stringify ( err.code ) );
+			self.horten.log ( self.name, 'error', JSON.stringify ( err.code ) );
 		});
 
 		connection.on('close', function ( err ) {
-			if ( err && that.keepAlive ) {
-				console.log ( that.name, 'Reconnecting' );
+			if ( err && self.keepAlive ) {
+				self.horten.log ( self.name, 'Reconnecting' );
 				connect(connection.config);
 			} else {
-				that.remove();
+				self.remove();
 			}
 		});	
 
-		that.connection = connection;
+		self.connection = connection;
 		
 		connection.connect( function ( err ) {
 			if ( !err ) {
-				that.connected = true;
-				that.flush();
+				self.connected = true;
+				self.flush();
+				var cc = self.connection.config;
+				self.name = 'mysql://'+cc.host+'/'+cc.database+'.'+self.dataTable;
+
 			} else {
 				// Handle bad connection here!
 			}
@@ -226,46 +184,122 @@ function MySQL ( config ) {
 	}
 
 	connect ( config.connection );
+	self.createTables();
 
-	var cc = this.connection.config;
-	this.name = 'mysql://'+cc.host+'/'+cc.database+'.'+this.dataTable;
+	// Magic object to declare that a path is being looked up.
+	self._pathLookingUp = {};
 
-	
-	this.query = function ( sql, callback ) {
-		if ( that.debug ) {
-			console.log ( that.name, sql );
-		}
-		that.connection.query ( sql, callback );
+	// State variables
+	self.pathIds = {};
+	self._queue = [];
+
+
+	self.attach ();
+
+}
+
+MySQL.prototype.init = function ( cb ) {
+
+
+}
+
+MySQL.prototype.createTables = function ( cb ) {
+	var self = this,
+		opt = self.opt,
+		columns = self.columns;
+
+	//
+	//	Assemble create table commands
+	//
+
+	var create = [];
+
+	if ( self.pathTable ) {
+		create.push ( escape( 
+			'CREATE TABLE IF NOT EXISTS ?? ( '+
+				'?? int(20) NOT NULL AUTO_INCREMENT, '+
+				'?? varchar(?) NOT NULL, '+
+				'PRIMARY KEY (??),'+
+				'UNIQUE KEY ?? (`path`) '+
+			') ENGINE=InnoDB;'
+		, [ self.pathTable, columns['pathId'], columns['path'], opt.pathLength, columns['pathId'], columns['path'] ]	
+/*
+			'CREATE TABLE IF NOT EXISTS `'+self.pathTable+'` ('+
+			'`'+self.columns['pathId']+'` int(20) NOT NULL AUTO_INCREMENT, '+
+			'`'+self.columns['path']+'` varchar('+opt.pathLength+') NOT NULL, '+
+			'PRIMARY KEY (`'+self.columns['pathId']+'`),'+
+			'UNIQUE KEY `'+self.columns['path']+'`  (`path`) '+
+			') ENGINE=InnoDB;'	
+*/
+		) );
 	}
 
+	if ( self.dataTable ) {
+		var sql = 	'CREATE TABLE IF NOT EXISTS `'+self.dataTable+'` (';
 
+		var keyCol;
+		if ( self.pathTable ) {
+			keyCol = columns['pathId'];
+			sql += 	'`'+keyCol+'` int(20) NOT NULL AUTO_INCREMENT, ';
+		} else {
+			keyCol = columns['path'];
+			sql +=	'`'+keyCol+'` varchar('+opt.pathLength+') NOT NULL, ';
+		}
+
+		if ( columns['time'] ) {
+			sql +=	'`'+columns['time']+'` BIGINT DEFAULT NULL, ';
+			sql += 	'KEY `'+columns['time']+'` ( `'+columns['time']+'` ), ';
+		}
+
+		if ( columns['number'] )
+			sql +=	'`'+columns['number']+'` double DEFAULT NULL, ';
+
+		if ( columns['json'] )
+			sql +=	'`'+columns['json']+'` text, ';
+
+		if ( columns.origin ) 
+			sql +=	'`'+columns.origin+'` varchar(255), ';
+
+		if ( columns.method ) 
+			sql +=	'`'+columns.method+'` char(8), ';
+		
+
+
+		if ( !self.history )
+			sql +=	'PRIMARY';
+
+		sql += 	' KEY `'+keyCol+'` (`'+keyCol+'`) ';
+		
+		sql += ') ENGINE=InnoDB;'
+
+		create.push ( sql );
+
+	}
 
 	for ( var i = 0; i < create.length; i ++ ) {
 		var sql = create[i];
-		this.query ( sql, 
+		self.query ( sql, 
 			function ( err, result ) {
 				if ( err ) {
-					that.horten.log( that.name, "Error creating table" );
+					self.horten.log( self.name, "Error creating table", err );
 					throw 'SQL Error';
 				}
 			}
 		);
-	}
-
-
-
-
-	// Magic object to declare that a path is being looked up.
-	this._pathLookingUp = {};
-
-	// State variables
-	this.pathIds = {};
-	this._queue = [];
-
-
-	this.attach ();
-
+	}	
 }
+
+
+MySQL.prototype.query = function ( sql ) {
+	var self = this;
+
+	if ( self.debug ) {
+		self.horten.log ( self.name, sql );
+	}
+	
+	self.connection.query.apply( self.connection, arguments );
+}
+
 
 MySQL.prototype.close = function ()
 {
@@ -280,39 +314,43 @@ MySQL.prototype.close = function ()
 
 MySQL.prototype.escapeDate = function ( date )
 {
+	var self = this;
+
 	date = new Date ( date );
 	var timeStamp = date.getTime ();
 
-	timeStamp -= this.timeOffset;
-	timeStamp /= this.timeQuant;
+	timeStamp -= self.timeOffset;
+	timeStamp /= self.timeQuant;
 	
 	return parseInt ( timeStamp )
 }
 
 MySQL.prototype.pull = function ( callback, time )
 {
-	var sql 	 = "SELECT * FROM `"+this.dataTable+"` ";
+	var self = this;
 
-	if ( this.pathTable )
-		sql 	+= 'NATURAL JOIN `'+this.pathTable+'` ';
+	var sql 	 = "SELECT * FROM `"+self.dataTable+"` ";
 
-	if ( this.history ) {
+	if ( self.pathTable )
+		sql 	+= 'NATURAL JOIN `'+self.pathTable+'` ';
+
+	if ( self.history ) {
 		if ( time || 0 == time ) {
-			sql += 'WHERE `'+this.columns.time+'` <= '+this.escapeDate ( time );
+			sql += 'WHERE `'+self.columns.time+'` <= '+self.escapeDate ( time );
 		} else {
 			sql += 'WHERE 1 ';	
 		}
 
-		sql 	+= 'GROUP BY `'+this.columns.path+'` ';
-		sql 	+= 'ORDER BY `'+this.columns.time+'` DESC ';
+		sql 	+= 'GROUP BY `'+self.columns.path+'` ';
+		sql 	+= 'ORDER BY `'+self.columns.time+'` DESC ';
 	} else {
 		sql 	+= 'WHERE 1 ';
 	}
 
-	var that = this;
+	
 
 	
-	this.query ( sql, 
+	self.query ( sql, 
 		function ( err, result ) {
 			if ( result ) {
 				var set = {};
@@ -321,15 +359,15 @@ MySQL.prototype.pull = function ( callback, time )
 					var path = row.path;
 					
 					var value;
-					if ( row[that.columns.json] != null ) {
+					if ( row[self.columns.json] != null ) {
 						try {
-							value = JSON.parse ( row[that.columns.json] );
+							value = JSON.parse ( row[self.columns.json] );
 						} catch ( e ) {
-							console.log ( that.name, 'ignoring bad JSON on pull' );
+							console.log ( self.name, 'ignoring bad JSON on pull' );
 							continue;
 						}
-					} else if ( that.columns.number && row[that.columns.number] != null ) {
-						value = parseFloat ( row[that.columns.number] );
+					} else if ( self.columns.number && row[self.columns.number] != null ) {
+						value = parseFloat ( row[self.columns.number] );
 					} else {
 						// We don't know what to do with the row we've
 						// been given.
@@ -339,7 +377,7 @@ MySQL.prototype.pull = function ( callback, time )
 					Horten.merge ( set, value, path ) ;
 				}
 
-				that.set ( set, that.prefix );
+				self.set ( set, self.prefix );
 				
 				if ( callback )
 					callback ();
@@ -362,45 +400,46 @@ MySQL.prototype.pull = function ( callback, time )
  */
 MySQL.prototype.getPathId = function ( path )
 {
-	path = Path ( path );
+	var self = this;
+	path = String( Path ( path ) );
 
 	// If there's no table for paths,
 	// we've got nothing to do.
-	if ( !this.pathTable )
+	if ( !self.pathTable )
 		return path.toString();
 
-	if ( this.pathIds[path] === this._pathLookingUp )
+	if ( self.pathIds[path] === self._pathLookingUp )
 		return null;	
 	
-	if ( this.pathIds[path] )
-		return this.pathIds[path];
+	if ( self.pathIds[path] )
+		return self.pathIds[path];
 	
 
 	
-	this.pathIds[path] = this._pathLookingUp;
-	
-	var sql = 	'SELECT `'+this.columns['pathId']+'` FROM `'+this.pathTable+'` '+
-				' WHERE `'+this.columns['path']+'`='+this.connection.escape ( path.string );
 
-	var that = this;
+	self.pathIds[path] = self._pathLookingUp;
 	
-	this.query ( sql,
+	var sql = escape( 
+		'SELECT ?? FROM ?? WHERE ??=?', 
+		[ columns['pathId'], self.pathTable, self.columns['path'], path ] 
+	);
+
+	
+	self.query ( sql,
 		function ( err, result ) {
-			if ( result && result[0] && result[0][that.columns['pathId']]) {
-				that.pathIds[path] = parseInt( result[0][that.columns['pathId']] );
-				that.flush();
+			if ( result && result[0] && result[0][self.columns['pathId']]) {
+				self.pathIds[path] = parseInt( result[0][self.columns['pathId']] );
+				self.flush();
 			} else {
 				// Insert
-				var sql = "INSERT INTO "+that.pathTable+
-				' ( `'+that.columns['path']+'` ) VALUES ( '+that.connection.escape ( path.string )+")";
-
-				that.query ( sql,
+				var sql = escape('INSERT INTO ?? ( ?? ) VALUES ( ? )', [ self.pathTable, columns['path'], path ] );
+				self.query ( sql,
 					function ( err, result ) {
 						if ( result && result.insertId ) {
-							that.pathIds[path] = result.insertId;
+							self.pathIds[path] = result.insertId;
 						}
 						
-						that.flush ();
+						self.flush ();
 					} 
 				);
 			}	
@@ -413,14 +452,15 @@ MySQL.prototype.getPathId = function ( path )
 
 MySQL.prototype.onData = function ( value, path, method, origin )
 {
+	var self = this;
 	//console.log ( "MYSQL ONDATA", value, path, method, origin );
 
-	var time = this.escapeDate( new Date () );
+	var time = self.escapeDate( new Date () );
 	
 	var out = [ path, value, time, method, origin ];
-	this._queue.push( out );
+	self._queue.push( out );
 	
-	this.flush ();
+	self.flush ();
 }
 
 MySQL.prototype.flush = function ( callback )
@@ -516,7 +556,7 @@ MySQL.prototype.flush = function ( callback )
 
 
 				if ( type == 'number' && this.columns.number ) {
-					set[c.number] = value;
+					set[c.number] = isNaN( value ) ? null : value;
 				} else if ( this.columns.json ) {
 					set[c.json] = JSON.stringify ( value );
 				} else {

@@ -2,7 +2,7 @@
 
 var ArgumentParser = require('argparse').ArgumentParser;
 
-var H = require('horten');
+var H = require('../index.js');
 
 
 var parser = new ArgumentParser({

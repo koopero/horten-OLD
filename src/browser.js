@@ -32,3 +32,26 @@ function urlParse ( url, parseQueryString )  {
 
 	return ret;
 }
+
+// Right from the node source code!
+// https://github.com/joyent/node/blob/master/lib/util.js
+var inherits = function(ctor, superCtor) {
+  ctor.super_ = superCtor;
+  ctor.prototype = Object.create(superCtor.prototype, {
+    constructor: {
+      value: ctor,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    }
+  });
+};
+
+function instance () {
+	return Horten.instance();
+}
+
+
+function nextTick( func ) {
+	setTimeout( func, 1 );
+} 

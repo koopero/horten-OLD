@@ -1,45 +1,55 @@
 var
-	Argue = require('./Argue.js');
+	Argue = require('./Argue.js'),
+	Connection = require('./Connection.js'),
+	Path = require('./Path.js');
+
 
 module.exports = HSS;
 
 function HSS () {
-	var self = this,
-		opt = Argue( arguments, '$url', { primitive: true } );
+	var opt = Argue( arguments, '$url', { primitive: true } ),
+		self = this;
+
+	if ( self.constructor != HSS ) {
+		return new HSS( opt );
+	}
+
+	self.name = "hss:"+opt.url.port;
+
+	
 
 	if ( opt.url ) {
 		self.listen( opt.url );
+
 	}
 }
 
-HSS.listen = function ( url ) {
+HSS.prototype.listen = function ( url ) {
+	var self = this;
 
 	var server = require('net').createServer( function (socket) {
-		console.log ( "Connected" );
+		//console.log ( "Connected", socket );
 
-		socket.on('end', function () {
-			listener.remove();
-			console.log ( "Disconnected" );
-		});
 
-		var listener = new Connection ( {
-			path: options.path
+
+		var connection = new Connection ( {
+			path: self.path,
+			prefix: self.prefix
 		});
-		listener.attach_hss ( socket );
-		
-		//socket.end();
+		attach ( connection, socket );
 	});
 
 	server.listen( url.port );
+	//console.warn ( self.name, "Listening", url )
 }
 
 /**
  * Accept a connection for a remote WebSocket Client.
  * @param connection
  */
-function attach ( socket ) 
+function attach ( connection, socket ) 
 {
-	var self = this;
+	var self = connection;
 
 	self.hssSocket = socket;
 	self.name = "hss:"+socket.remoteAddress;
@@ -49,12 +59,12 @@ function attach ( socket )
 		self.onRemoteClose ();
 	});
 
-	this.readyToSend = function () {
+	self.readyToSend = function () {
 		return !!socket;
 	}
 
-	this.send = function ( msg ) {
-		console.log ( self.name, 'Writing hss' );
+	self.send = function ( msg ) {
+		//console.log ( self.name, 'Writing hss' );
 		var content = new Buffer( JSON.stringify( msg ) );
 		var header = new Buffer( 4 );
 		header.writeUInt32BE( content.length, 0 );
@@ -63,14 +73,14 @@ function attach ( socket )
 		return true;
 	}
 
-	this._close = function () {
+	self._close = function () {
 		socket.destroy();
 		socket = null;
 	}
 
 
-	this.attach ();
-	console.log ( self.name, 'Accepted HSS connection' );
+	self.attach ();
+	//console.log ( self.name, 'Accepted HSS connection' );
 
-	this.push();
+	self.push();
 }

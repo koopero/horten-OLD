@@ -15,36 +15,31 @@ module.exports = OSC;
 
 function OSC ( url, path ) {
 
-	var conf = Argue( arguments, {
+	var opt = Argue( arguments, {
 		treatAsArray: []
 	}, '$url', 'path', { 
 		primitive: true,
 	} );
 
 	if ( this.constructor != OSC ) {
-		return new OSC( conf );
+		return new OSC( opt );
 	}
 
 	var self = this;
-	
-
-	Listener.call ( self, conf, self.onData );
-	
-	//console.log ( 'OSC', conf );
+	self.opt = opt;
 	self.clients = {};
-	self.autoClient = parseInt( conf.autoClient );
-	self.treatAsArray = conf.treatAsArray;
-	
+	Listener.call ( self, opt, self.onData );
 
-
-	if ( conf.url ) {
-		self.listen( conf.url );	
+	if ( opt.port ) {
+		opt.url = opt.url || {};
+		opt.url.port = opt.port;
 	}
 
-	if ( conf.client && conf.client.host && conf.client.port ) {
-		self.addClient ( conf.client.host, conf.client.port, false );
+	if ( opt.url ) {
+		self.listen( opt.url );	
 	}
-	
+
+
 	self.close = function () {
 		self.remove()
 			
@@ -59,7 +54,8 @@ function OSC ( url, path ) {
 };
 
 OSC.prototype.listen = function ( url ) {
-	var self = this;
+	var self = this,
+		opt = self.opt;
 
 	if ( 'number' == typeof url )
 		url = {	port: url };
@@ -87,10 +83,18 @@ OSC.prototype.listen = function ( url ) {
 
 				var client = self.Client( clientUrl, true );
 				
+				//console.warn ( "CLIENT URL", clientUrl, urllib.format( clientUrl ) )
+
 				if ( clientUrl.push || clientUrl.push === '' )
 					client.push();
 				
 			return;
+		}
+
+		if ( opt.clientPort ) {
+			var clientUrl = 'osc:'+rinfo.address+':'+opt.clientPort;
+			
+			self.Client( clientUrl, true );
 		}
 
 		self.name = "oscIn://"+rinfo.address;
@@ -101,22 +105,25 @@ OSC.prototype.listen = function ( url ) {
 }
 
 OSC.prototype.Client = function ( url, create ) {
-	var self = this,
-		name = urllib.format( url );
+	var self = this;
 
-	if ( !self.clients[ name ] ) {
+	url = 'string' == typeof url ? url : urllib.format( url );
+	//console.warn ( "CLIENT", url, self.clients )
+	if ( !self.clients[ url ] ) {
 		if ( !create )
 			return;
 
-		self.clients[ name ] = new Client ( {
+		var client = self.clients[ url ] = new Client ( {
 			url: url,
 			attach: false
 		});
 
-		console.warn ( self.clients );
+		client.push();
+
+		//console.warn ( self.clients );
 	}
 
-	return self.clients[ name ];
+	return self.clients[ url ];
 }
 
 OSC.prototype.addClient = function ( address, port, push ) {
@@ -130,7 +137,7 @@ OSC.prototype.addClient = function ( address, port, push ) {
 
 	this.clients[clientName] = new osc.Client ( address, port );
 
-	this._pushOnlyToClient
+	return client;
 }
 
 
@@ -142,6 +149,7 @@ OSC.prototype.onData = function ( value, path, method, origin ) {
 
 	var pathStr = path.string;
 
+/*
 	if ( self.treatAsArray ) {
 		for ( var i = 0; i < self.treatAsArray.length; i ++ ) {
 			var wildcard = self.treatAsArray[i];
@@ -170,16 +178,20 @@ OSC.prototype.onData = function ( value, path, method, origin ) {
 			}
 		}
 	}
+*/
 
 	self.send ( value, path );
 }
 
 OSC.prototype.send = function ( value, path, excludeClient ) {
 	var self = this,
+		clients = self.clients,
 		msg = OSC.message( value, path );
 
-	for ( var k in self.clients ) {
-		var client = self.clients[k];
+	//console.warn( "OSC SEDN", msg, clients );
+
+	for ( var k in clients ) {
+		var client = clients[k];
 		if ( client == excludeClient )
 			continue;	
 
@@ -219,6 +231,9 @@ function Client ( url, path ) {
 	if ( self.constructor != Client ) {
 		return new Client( opt );
 	}
+
+	if ( 'string' == typeof opt.url )
+		opt.url = urllib.parse( opt.url );
 
 	self.osc = new osc.Client ( opt.url.hostname, opt.url.port );
 	Listener.call( self, opt, self.onData );

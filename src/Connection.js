@@ -1,6 +1,8 @@
 // #ifdef NODE
 module.exports = Connection;
-var Listener = require('./Listener.js' );
+var Listener = require('./Listener.js' ),
+	Path = require('./Path.js');
+	
 var inherits = require('util').inherits;
 // #endif
 
