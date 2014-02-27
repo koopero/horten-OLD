@@ -55,6 +55,10 @@ function attach ( connection, socket )
 	self.name = "hss:"+socket.remoteAddress;
 
 	
+	socket.on('error', function () {
+		self.onRemoteClose ();
+	});
+
 	socket.on('end', function () {
 		self.onRemoteClose ();
 	});

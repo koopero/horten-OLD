@@ -1,5 +1,5 @@
 // #ifdef NODE
-var nextTick = process.nextTick,
+var nextTick = setImmediate,//process.nextTick,
 	__global = global;
 
 var 
