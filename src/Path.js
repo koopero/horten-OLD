@@ -55,7 +55,7 @@ function Path ( path ) {
 
   	// Can be called as either Path or new Path
  	if ( this.constructor != Path ) {
- 		return new Path ( path );
+ 		return new Path ( arguments );
  	}
 
  	var self = this;

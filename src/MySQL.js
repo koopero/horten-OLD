@@ -215,23 +215,14 @@ MySQL.prototype.createTables = function ( cb ) {
 	var create = [];
 
 	if ( self.pathTable ) {
-		create.push ( escape( 
-			'CREATE TABLE IF NOT EXISTS ?? ( '+
-				'?? int(20) NOT NULL AUTO_INCREMENT, '+
-				'?? varchar(?) NOT NULL, '+
-				'PRIMARY KEY (??),'+
-				'UNIQUE KEY ?? (`path`) '+
-			') ENGINE=InnoDB;'
-		, [ self.pathTable, columns['pathId'], columns['path'], opt.pathLength, columns['pathId'], columns['path'] ]	
-/*
+		create.push ( 	
 			'CREATE TABLE IF NOT EXISTS `'+self.pathTable+'` ('+
 			'`'+self.columns['pathId']+'` int(20) NOT NULL AUTO_INCREMENT, '+
 			'`'+self.columns['path']+'` varchar('+opt.pathLength+') NOT NULL, '+
 			'PRIMARY KEY (`'+self.columns['pathId']+'`),'+
 			'UNIQUE KEY `'+self.columns['path']+'`  (`path`) '+
 			') ENGINE=InnoDB;'	
-*/
-		) );
+		);
 	}
 
 	if ( self.dataTable ) {
@@ -400,7 +391,8 @@ MySQL.prototype.pull = function ( callback, time )
  */
 MySQL.prototype.getPathId = function ( path )
 {
-	var self = this;
+	var self = this,
+		columns = self.columns;
 	path = String( Path ( path ) );
 
 	// If there's no table for paths,
@@ -419,7 +411,7 @@ MySQL.prototype.getPathId = function ( path )
 
 	self.pathIds[path] = self._pathLookingUp;
 	
-	var sql = escape( 
+	var sql = self.connection.escape( 
 		'SELECT ?? FROM ?? WHERE ??=?', 
 		[ columns['pathId'], self.pathTable, self.columns['path'], path ] 
 	);

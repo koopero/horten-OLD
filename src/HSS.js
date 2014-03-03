@@ -78,7 +78,8 @@ function attach ( connection, socket )
 	}
 
 	self._close = function () {
-		socket.destroy();
+		if ( socket )
+			socket.destroy();
 		socket = null;
 	}
 

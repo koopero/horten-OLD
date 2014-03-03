@@ -6,6 +6,7 @@ var
 
 var 
 	Argue = require('./Argue.js'),
+	Horten = require('./Horten.js'),
 	Listener = require( './Listener.js' ),
 	Path = require('./Path.js');
 
@@ -27,6 +28,7 @@ function OSC ( url, path ) {
 
 	var self = this;
 	self.opt = opt;
+	self.treatAsArray = opt.treatAsArray;
 	self.clients = {};
 	Listener.call ( self, opt, self.onData );
 
@@ -147,17 +149,22 @@ OSC.prototype.onData = function ( value, path, method, origin ) {
 	if ( !self.clients )
 		return;
 
-	var pathStr = path.string;
+	var pathStr = String( path );
 
-/*
+
 	if ( self.treatAsArray ) {
 		for ( var i = 0; i < self.treatAsArray.length; i ++ ) {
 			var wildcard = self.treatAsArray[i];
 			var firstPart = pathStr.substr ( 0, wildcard.length );
 
+			
+
 			if ( firstPart == wildcard ) {
 				var index = parseInt ( pathStr.substr ( wildcard.length ) );
 				firstPart = OSC.pathString ( firstPart );
+
+				console.warn( 'OSC treatAsArray', firstPart, index, value );
+
 				if ( !self._arrayValues )
 					self._arrayValues = {};
 
@@ -171,21 +178,31 @@ OSC.prototype.onData = function ( value, path, method, origin ) {
 
 				self._arraySend[firstPart] = true;
 
-				process.nextTick ( function () {
+				setImmediate ( function () {
 					self.sendArrays ();
 				});
 				return;
 			}
 		}
 	}
-*/
+
 
 	self.send ( value, path );
 }
 
 OSC.prototype.send = function ( value, path, excludeClient ) {
-	var self = this,
-		clients = self.clients,
+	var self = this;
+
+	if ( 'object' == typeof value ) {
+		var flattened = Horten.flatten( value, path );
+		for ( var p in flattened ) {
+			self.send( flattened[p], p, excludeClient );
+		}
+
+		return;
+	}
+
+	var	clients = self.clients,
 		msg = OSC.message( value, path );
 
 	//console.warn( "OSC SEDN", msg, clients );
@@ -202,17 +219,20 @@ OSC.prototype.send = function ( value, path, excludeClient ) {
 OSC.prototype.sendArrays = function () {
 	var self = this;
 	if ( self._arraySend ) {
+
+
 		var path;
 		for ( path in self._arraySend ) {
+			var arr = self._arrayValues[path];
+			var msg = new osc.Message (	path );
+
+			for ( var i = 0; i < arr.length; i ++ ) 
+				msg.append ( arr[i] );
+
 			for ( k in self.clients ) {
+				console.log ( "OSC sendArrays", msg );
 				var client = self.clients[k];
-				var arr = self._arrayValues[path];
-				var msg = new osc.Message (	path );
-
-				for ( var i = 0; i < arr.length; i ++ ) 
-					msg.append ( arr[i] );
-
-				client.send ( msg );		
+				client.sendMsg ( msg );		
 			}			
 		}
 		self._arraySend = {};
