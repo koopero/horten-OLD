@@ -19,6 +19,18 @@ describe('Path', function() {
 		P.string.should.equal('/foo/bar/');
 	});
 
+	it('should make a working path object from arguments', function () {
+		var P = H.Path( 'foo',['bar','/baz/'] );
+		P.string.should.equal('/foo/bar/baz/');
+	});
+
+
+	it('should make a working path object from combining Paths', function () {
+		var P = H.Path( 'foo', H.Path( 'bar','/baz/') );
+		P.string.should.equal('/foo/bar/baz/');
+	});
+
+
 	it('should return a Path object unchanged', function () {
 		var P = H.Path( '/baz/qux' );
 		var r = H.Path( P );
@@ -35,7 +47,7 @@ describe('Path', function() {
 		H.Path( '//////qux/////quark/'  ).string.should.equal ( '/qux/quark/' );
 		H.Path( ['/foo/', null, 2 ]  ).string.should.equal ( '/foo/2/' );
 		H.Path( false ).string.should.equal ( '/false/' );
-		H.Path( 0 ).string.should.equal ( '/0/' );
+		H.Path( 0, 1, 2 ).string.should.equal ( '/0/1/2/' );
 	})
 
 	it('should deal with unicode', function () {

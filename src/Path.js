@@ -110,9 +110,6 @@ function Path ( path ) {
  	return self;
 }
  
-Path.prototype.seg = function ( i ) {
-	return this.array[i];
-}
 
 
 //	--------------------

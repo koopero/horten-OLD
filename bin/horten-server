@@ -72,7 +72,7 @@ HServer.listenHttp ();
 HServer.log( 'javascript', HServer.clientJSUrl );
 
 if ( args.hss ) {
-  HServer.listenHSS ( parseInt( args.hss ) );
+  var hss = H.HSS( parseInt( args.hss ) );
 }
 
 if ( args.flash ) {
@@ -81,9 +81,7 @@ if ( args.flash ) {
 
 if ( args.osc ) {
   var OSCServer = new (H.OSC)( {
-    server: {
       port: parseInt ( args.osc )
-    }
   });
 }
 
