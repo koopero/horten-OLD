@@ -53,6 +53,8 @@ function MySQL ( config ) {
 	var self = this;
 	self.opt = opt;
 
+	
+
 	opt.connection = opt.connection || opt.url;
 
 	if ( self.constructor != MySQL ) {
@@ -147,7 +149,7 @@ function MySQL ( config ) {
 
 		if ( 'object' != typeof connection ) {
 			// Need something!
-			throw 'Connection details not specified';
+			throw new Error( 'Connection details not specified' );
 		} else if ( connection._protocol ) {
 			// A flaky way of determining if the connection passed in config
 			// is a real connection, as oppose to the configuration for one.
@@ -183,7 +185,9 @@ function MySQL ( config ) {
 		});
 	}
 
-	connect ( config.connection );
+
+
+	connect ( opt.connection );
 	self.createTables();
 
 	// Magic object to declare that a path is being looked up.

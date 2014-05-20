@@ -31,7 +31,107 @@ module.exports = Listener;
 function Listener ( options, onData )
 {
 	var self = this;
-	if ( typeof options == 'string' ) {
+	var horten;
+
+
+	self.attach = function ( setPath, setHorten )
+	{
+		setPath = Path( setPath );
+		setHorten = setHorten || self.horten || instance();
+
+		if ( self.horten && setHorten != self.horten )
+			self.horten.removeListener( self );
+
+		self.horten = setHorten;
+
+		if ( self.horten )
+			self.horten.attachListener ( self );
+	}
+
+	self.remove = function ()
+	{
+		if ( self.horten )
+			self.horten.removeListener ( self );
+	}
+
+	self.push = function ()
+	{
+		var horten = self.horten || instance();
+
+		if ( !self.primitive ) {
+			self.onData ( horten.get( self.path ), Path ( self.prefix ), 'push', self );
+		} else {
+			var d = horten.get ( self.path, true ), k;
+			d = flatten( d );
+
+			for ( k in d ) {
+				self.onData ( d[k], Path ( k ).translate ( null, self.prefix ) );
+			}
+		}
+	}
+
+	self.get = function ( path )
+	{
+		if ( path == undefined || path == null )
+			path = self.prefix;
+			
+		path = Path ( path ).translate ( self.prefix, self.path );
+
+		if ( !self.horten )
+			self.horten = instance();
+
+		if ( path ) {
+			return self.horten.get ( path );
+		}
+
+		return undefined;
+	}
+
+	self.set = function ( value, path, flags )
+	{
+		if ( path == undefined || path == null || path == '/' || path == '' )
+			path = self.prefix;
+		
+		path = Path ( path ).translate ( self.prefix, self.path );
+
+		if ( !self.horten )
+			self.horten = instance();
+
+		if ( path ) 
+			return self.horten.set ( value, path, flags, self );
+		
+		return null;
+	}
+
+	self.localToGlobalPath = function ( path ) 
+	{
+		return Path ( path ).translate ( self.prefix, self.path );
+	}
+
+	self.globalToLocalPath = function ( path ) 
+	{
+		return Path ( path ).translate ( self.path, self.prefix );
+	}
+
+	self.onData = function ( path, value, method, origin )
+	{
+		if ( 'function' == typeof self.callback ) {
+			self.callback( path, value, method, origin );
+		}
+		// Do what you will be here.
+	}
+
+	self.setPath = function ( newPath ) 
+	{
+		var wasAttached = !!self._attachedToPath;
+		self.remove();
+		self.path = Path( newPath );
+
+		if ( wasAttached )
+			self.attach();
+	}
+
+	if ( typeof options == 'string' || options instanceof Path ) {
 		options = {
 			path: options
 		}
@@ -51,107 +151,10 @@ function Listener ( options, onData )
 			self.onData = onData;
 
 		if ( options.attach !== false ) {
-			self.horten = options.horten || instance();
+			horten = options.horten || instance();
 			self.attach ();
 		}
 
 	}
+
 };
-
-Listener.prototype.attach = function ( horten )
-{
-	var self = this;
-	if ( horten ) {
-		self.horten = horten;
-	} 
-
-	if ( !self.horten )
-		self.horten = instance();
-
-	self.horten.attachListener ( self );
-}
-
-Listener.prototype.remove = function ()
-{
-	var self = this;
-	if ( self.horten )
-		self.horten.removeListener ( self );
-}
-
-Listener.prototype.push = function ()
-{
-	var self = this,
-		horten = self.horten || instance();
-
-	if ( !self.primitive ) {
-		self.onData ( horten.get( self.path ), Path ( self.prefix ), 'push', self );
-	} else {
-		var d = horten.get ( self.path, true ), k;
-		d = flatten( d );
-
-		for ( k in d ) {
-			self.onData ( d[k], Path ( k ).translate ( null, self.prefix ) );
-		}
-	}
-}
-
-Listener.prototype.get = function ( path )
-{
-	if ( path == undefined || path == null )
-		path = this.prefix;
-		
-	path = Path ( path ).translate ( this.prefix, this.path );
-
-	if ( !this.horten )
-		this.horten = instance();
-
-	if ( path ) {
-		return this.horten.get ( path );
-	}
-
-	return undefined;
-}
-
-Listener.prototype.set = function ( value, path, flags )
-{
-	if ( path == undefined || path == null || path == '/' || path == '' )
-		path = this.prefix;
-	
-	path = Path ( path ).translate ( this.prefix, this.path );
-
-	if ( !this.horten )
-		this.horten = instance();
-
-	if ( path ) 
-		return this.horten.set ( value, path, flags, this );
-	
-	return null;
-}
-
-Listener.prototype.localToGlobalPath = function ( path ) 
-{
-	return Path ( path ).translate ( this.prefix, this.path );
-}
-
-Listener.prototype.globalToLocalPath = function ( path ) 
-{
-	return Path ( path ).translate ( this.path, this.prefix );
-}
-
-Listener.prototype.onData = function ( path, value, method, origin )
-{
-	if ( 'function' == typeof this.callback ) {
-		this.callback( path, value, method, origin );
-	}
-	// Do what you will be here.
-}
-
-Listener.prototype.setPath = function ( newPath ) 
-{
-	var wasAttached = !!this._attachedToPath;
-	this.remove();
-	this.path = Path( newPath );
-
-	if ( wasAttached )
-		this.attach();
-}

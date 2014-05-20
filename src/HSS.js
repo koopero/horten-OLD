@@ -28,7 +28,6 @@ HSS.prototype.listen = function ( url ) {
 	var self = this;
 
 	var server = require('net').createServer( function (socket) {
-		//console.log ( "Connected", socket );
 
 
 
@@ -37,6 +36,11 @@ HSS.prototype.listen = function ( url ) {
 			prefix: self.prefix
 		});
 		attach ( connection, socket );
+		
+		console.log ( "Connected", connection );
+
+
+		connection.push();
 	});
 
 	server.listen( url.port );
@@ -68,7 +72,7 @@ function attach ( connection, socket )
 	}
 
 	self.send = function ( msg ) {
-		//console.log ( self.name, 'Writing hss' );
+		console.log ( self.name, 'Writing hss' );
 		var content = new Buffer( JSON.stringify( msg ) );
 		var header = new Buffer( 4 );
 		header.writeUInt32BE( content.length, 0 );

@@ -479,6 +479,7 @@ Horten.prototype.listenPrimitive = function ( path, callback, options )
 	var listener = new Listener ( options );
 	listener.callback = callback;
 	this.attachListener( listener );
+	
 	return listener;
 }
 
