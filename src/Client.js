@@ -1,6 +1,7 @@
 // #ifdef NODE
 var Connection = require('./Connection.js');
 module.exports = Client;
+var urlParse = require('url').parse;
 // #endif
 
 
@@ -39,7 +40,7 @@ function Client ( url, options, callback ) {
 		throw new Error ( 'parameter unsupported');
 	}
 
-	console.log ( "TRYING CONNNECT", url );
+	console.log ( "TRYING CONNNECT", url, urlStr );
 	var listener;
 
 	if ( url.protocol == 'ws:' ) {
