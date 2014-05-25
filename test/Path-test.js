@@ -75,4 +75,17 @@ describe('Path', function() {
 		})
 	})
 
+	describe('#slice', function() {
+		it('should work', function () {
+			var p = H.Path('one','two','three','four')
+			p.slice().string.should.equal( '/one/two/three/four/' );
+			p.slice( 1 ).string.should.equal( '/two/three/four/' );
+			p.slice( -1 ).string.should.equal( '/four/' );
+			p.slice( -2 ).string.should.equal( '/three/four/' );
+			p.slice( 1,1 ).string.should.equal( '/two/' );
+			p.slice( 0,-1 ).string.should.equal( '/one/two/three/' );
+			p.slice( 0,-2 ).string.should.equal( '/one/two/' );
+		});
+	});
+
 });

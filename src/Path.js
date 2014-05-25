@@ -148,26 +148,27 @@ Path.prototype.slice = function ( i, length ) {
 		self = this,
 		ret = new Path();
 
-	i = parseInt( i );
+	i = parseInt( i ) || 0;
+	if ( i < 0 )
+		i += self.length;
+
 	length = parseInt( length );
-
-	if ( length === undefined ) 
+	if ( isNaN( length ) ) {
 		length = self.length;
+	} else if ( length < 0 ) {
+		length += self.length - i;
+	}
 
-	while ( i < self.length && length ) {
- 		ret[ret.length] = self[i];
+	while ( i < self.length && length > 0 ) {
+		var str = self[i];
+		ret[ret.length] = str;
 		ret.length ++;
-		ret.str += str + '/';
+		ret.string += str + '/';
 		i++;
 		length --;
 	}
 
-
-	function append ( str ) {
- 		self[self.length] = str;
-		self.length ++;
-		self.string += str + '/';
- 	}
+	return ret;
 }
 
 /**
