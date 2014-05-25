@@ -37,7 +37,7 @@ HSS.prototype.listen = function ( url ) {
 		});
 		attach ( connection, socket );
 		
-		console.log ( "Connected", connection );
+		console.log ( self.name, "connected" );
 
 
 		connection.push();
@@ -72,7 +72,6 @@ function attach ( connection, socket )
 	}
 
 	self.send = function ( msg ) {
-		console.log ( self.name, 'Writing hss' );
 		var content = new Buffer( JSON.stringify( msg ) );
 		var header = new Buffer( 4 );
 		header.writeUInt32BE( content.length, 0 );
