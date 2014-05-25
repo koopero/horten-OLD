@@ -520,7 +520,7 @@ Server.prototype.loadIncludes = function () {
 
 	self.includes = self.includes || {};
 
-	console.log ( "INCLUDES", includes );
+	//console.log ( "INCLUDES", includes );
 
 	for ( var k in includes ) {
 		var filename = includes[k];
