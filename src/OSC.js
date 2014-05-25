@@ -95,13 +95,26 @@ OSC.prototype.listen = function ( url ) {
 
 		if ( opt.clientPort ) {
 			var clientUrl = 'osc:'+rinfo.address+':'+opt.clientPort;
-			
 			self.Client( clientUrl, true );
 		}
 
 		self.name = "oscIn://"+rinfo.address;
-		self.set ( value, path );
-		self.send( value, path );
+
+		if ( String( path.slice( -1 ) ) == '/$encoder/' ) {
+			value = parseFloat( value ) || 0;
+
+			var targetPath = path.slice( 0, -1 );
+			var targetValue = parseFloat( self.get( targetPath ) ) || 0;
+
+			targetValue += value;
+
+			self.set ( targetValue, targetPath )
+
+		} else {
+			self.set ( value, path );
+			self.send( value, path );		
+		}
+
 
 	} );
 }
