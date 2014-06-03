@@ -29,7 +29,7 @@ HSS.prototype.listen = function ( url ) {
 
 	var server = require('net').createServer( function (socket) {
 
-
+		socket.setNoDelay( true );
 
 		var connection = new Connection ( {
 			path: self.path,
@@ -74,8 +74,11 @@ function attach ( connection, socket )
 	self.send = function ( msg ) {
 		var content = new Buffer( JSON.stringify( msg ) );
 		var header = new Buffer( 4 );
+
 		header.writeUInt32BE( content.length, 0 );
 		socket.write( Buffer.concat( [ header, content ] ) );
+
+
 
 		return true;
 	}
