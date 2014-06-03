@@ -593,6 +593,7 @@ Horten.prototype.flush = function ()
 	var that = this;
 	
 	var listeners = this._pendingListeners;
+	delete this._pendingListeners;
 	
 	if ( listeners && listeners.length ) {
 		for ( var i = 0; i < listeners.length; i ++ ) {
@@ -631,9 +632,11 @@ Horten.prototype.flush = function ()
 				callback.call( listener, that.get( listenerPath ), listenerPrefix, ob.method, ob.origin );
 			}
 		}
+
+		nextTick ( function () { that.flush() } );
 	}
 	
-	delete this._pendingListeners;
+
 }
 
 //	-----------------
