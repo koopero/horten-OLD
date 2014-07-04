@@ -54,6 +54,39 @@ describe('Path', function() {
 		H.Path( 'ɥʇɐd//uɐılɐɹʇsnɐ'  ).string.should.equal ( '/ɥʇɐd/uɐılɐɹʇsnɐ/' );
 	})
 
+	describe('#append', function () {
+		it('should append a string', function () {
+			var a = H.Path('one');
+			var b = a.append( 'two' );
+			assert.equal( '/one/two/', String(b) );
+		});
+
+		it('should append multiple strings', function () {
+			var a = H.Path('one');
+			var b = a.append( 'two', 'three' );
+			assert.equal( '/one/two/three/', String(b) );
+		});
+
+		it('should append another path', function () {
+			var a = H.Path('one','two' );
+			var b = H.Path('three/four' );
+			assert.equal('/one/two/three/four/', String( a.append ( b ) ) );
+		});
+
+		it('should append an array', function () {
+			var a = H.Path('one','two' );
+			var b = ['three',4];
+			assert.equal('/one/two/three/4/', String( a.append ( b ) ) );			
+		});
+
+		it('should return self when blank arguments are given', function () {
+			var a = H.Path('one');
+			assert.strictEqual( a, a.append() );
+			assert.strictEqual( a, a.append( null ) );
+			assert.strictEqual( a, a.append( '/' ) );
+		});
+	});
+
 	describe('#translate', function () {
 		it('should properly translate paths', function () {
 			var P = H.Path( 'hello/world' )
@@ -108,6 +141,12 @@ describe('Path', function() {
 				setter( 'foobar');
 
 				assert.equal( 'foobar', H.get('noObject/test') );
+			});
+
+			it('should work when chaining a bunch of stuff together', function () {
+				var setter = H.Path( 'chain', 'one' ).append( 'two', 'three' ).set;
+				setter( { six: 'seven' }, H.Path('four', 'five' ) );
+				assert.deepEqual( { one: { two: { three: { four: { five: {six: 'seven'}}}}}}, H.get('chain') );
 			});
 		});
 

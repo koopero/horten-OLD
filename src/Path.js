@@ -149,8 +149,15 @@ function Path ( path ) {
 	//	Manipulation and comparison
 	//	---------------------------
 
-	self.append = function ( postfix ) {
-		return Path( self.string + postfix);
+	self.append = function () {
+		if ( arguments.length == 0 )
+			return self;
+
+		var postfix = Path( arguments );
+		if ( postfix.length == 0 )
+			return self;
+		
+		return Path( String( self ) + String( postfix ) );
 	}
 
 	self.slice = function ( i, length ) {
