@@ -98,4 +98,6 @@ if ( connectionConfig ) {
 
 		})
 	} );
+} else {
+	console.warn ( "File 'MySQL-connection.json' not found. Not testing MySQL." );
 }

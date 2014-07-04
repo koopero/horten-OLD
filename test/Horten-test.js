@@ -1,5 +1,7 @@
 var H = require('../index.js' );
-var should = require('should');
+var 
+	assert = require('assert'),
+	should = require('should');
 
 describe ( 'Horten', function () {
 
@@ -122,6 +124,42 @@ describe ( 'Horten', function () {
 			// DON'T DO THIS IN YOUR REAL CODE!!! SERIOUSLY!
 			h.get ( 'longer/path/this', true ).time = 'foo';
 			h.get ( 'longer/path/this/time' ).should.equal ( 'foo' );
+		});
+	});
+
+	describe( '#getNumber()', function () {
+		before( function () {
+			H.set({
+				number: 4,
+				boolFalse: false,
+				boolTrue: true,
+				string: '4.0',
+				invalidString: 'notANumber',
+				obWithValue: {
+					value: 4,
+					somethingElse: 'foo'
+				},
+				obWithoutValue: {
+					somethingElse: 'bar'
+				}
+			}, 'numTest' );
+		});
+
+		it('should get clean numbers', function () {
+			assert.equal( 4, H.getNumber( 'numTest/number' ) );
+			assert.equal( 4, H.getNumber( 'numTest/string' ) );
+			assert.equal( 1, H.getNumber( 'numTest/boolTrue' ) );
+			assert.equal( 0, H.getNumber( 'numTest/boolFalse' ) );
+		});
+
+		it('should return provided default when not a number', function () {
+			assert.equal( undefined, H.getNumber( 'numTest/notANumber' ) );
+			assert.equal( 0, H.getNumber( 'numTest/notANumber', 0 ) );
+		});
+
+		it('should dig into objects', function () {
+			assert.equal( 4, H.getNumber( 'numTest/obWithValue' ) );
+			assert.equal( 0, H.getNumber( 'numTest/obWithoutValue', 0 ) );
 		});
 	});
 

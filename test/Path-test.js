@@ -88,4 +88,47 @@ describe('Path', function() {
 		});
 	});
 
+	describe('orthogonal functions', function () {
+
+		describe('#set', function () {
+			var path = H.Path( 'ortho', 'test' );
+			path.set( {
+				one: 1,
+				two: 2
+			} );
+			path.set( 3, 'three' );
+
+			assert.deepEqual( H.get( 'ortho/test' ), { one: 1, two: 2, three: 3 } );
+		});
+
+		describe('#get', function () {
+			H.set( { 
+				'foo': 'bar',
+				'bar': 'baz'
+			}, 'test/get' );
+			
+			var path = H.Path( 'test', 'get' );
+			assert.deepEqual(
+				path.get(), 
+				{ 'foo': 'bar', 'bar': 'baz' }
+			);
+
+			assert.equal( 'baz', path.get('bar') );
+		});
+
+		describe('#getNumber', function () {
+			H.set( {
+				'number': 5,
+				'notANumber': 'foo',
+				'numberInObject': { value: 6 }
+			}, 'numberTest' );
+
+			var path = H.Path('numberTest');
+
+			assert.equal( 5, path.getNumber('number', 0 ) );
+			assert.equal( 0, path.getNumber('notANumber', 0 ) );
+			assert.equal( 6, path.getNumber('numberInObject', 0 ) );
+		});
+
+	});
 });

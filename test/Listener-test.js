@@ -12,7 +12,7 @@ function multiplePrimitiveCallback( expect, done ) {
 	var pending = H.flatten ( expect );
 
 	var callback = function ( value, path ) {
-		path = path.string;
+		path = String(path);
 
 		if ( pending[path] === undefined ) 
 			done ( new Error ( 'Unexpected path or path called multiple times.' ) );

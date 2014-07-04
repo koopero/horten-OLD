@@ -138,6 +138,18 @@ Path.prototype.get = function ( path, horten ) {
 	return horten.get ( path );	
 }
 
+Path.prototype.getNumber = function ( path, defaultValue ) {
+	var self = this,
+		horten = self.horten || instance();
+
+	path = self.append ( path );
+
+	return horten.getNumber( path, defaultValue );
+}
+
+//	---------------------------
+//	Manipulation and comparison
+//	---------------------------
 
 Path.prototype.append = function ( postfix ) {
 	return Path(this.string + postfix);
@@ -200,19 +212,26 @@ Path.prototype.translate = function ( root, prefix ) {
 
 
 Path.prototype.is = function ( compare ) {
+	var self = this;
+
+	if ( self === compare )
+		return true;
+
 	compare = Path ( compare );
-	return this == compare;
+	return String( self ) === String ( compare );
 }
 
 
 Path.prototype.startsWith = function ( root ) {
+	var self = this;
+
 	root = Path ( root );
 	var rootStrLen = root.string.length;
 	
-	if ( this.string.substr( 0, rootStrLen ) != root.string )
+	if ( self.string.substr( 0, rootStrLen ) != root.string )
 		return false;
 
-	return Path ( this.string.substr( rootStrLen ) );
+	return Path ( self.string.substr( rootStrLen ) );
 }
 
 Path.prototype.toString = function () {

@@ -77,6 +77,19 @@ Horten.prototype.get = function ( path, original ) {
 	return d;
 }
 
+Horten.prototype.getNumber = function ( path, defaultValue ) {
+	var self = this,
+		value = self.get( path, true );
+
+	return Horten.valueToNumber( value, defaultValue );
+}
+
+/**
+	Key used when converting objects to numbers.
+	See Horten.valueToNumber
+*/
+
+Horten.VALUE_KEY = 'value';
 
 
 /**
@@ -410,6 +423,8 @@ Horten.set = function ( value, path, flags, origin )
 	{	return Horten.instance().set ( value, path, flags, origin ); }
 Horten.get = function ( path, original ) 
 	{	return Horten.instance().get ( path, original ); }
+Horten.getNumber = function ( path, defaultValue ) 
+	{	return Horten.instance().getNumber ( path, defaultValue ); }
 Horten.listen = function ( path, callback, options ) 
 	{	return Horten.instance().listen ( path, callback, options ); }
 Horten.listenPrimitive = function ( path, callback, options ) 
@@ -895,3 +910,38 @@ Horten.flatten = function ( ob, path ) {
 	}
 
 };
+
+Horten.valueToNumber = function ( value, defaultValue ) {
+	if ( 'object' == typeof value ) {
+		if ( Horten.VALUE_KEY ) {
+			return primitiveToNumber( value[Horten.VALUE_KEY] );
+		}
+		return defaultValue;
+	} else {
+		return primitiveToNumber( value );
+	}
+
+
+	function primitiveToNumber ( value ) {
+		var type = typeof value;
+
+		if ( value === null ) {
+			return defaultValue;
+		} 
+
+		if ( 'number' == type || 'string' == type ) {
+			value = parseFloat( value );
+
+			if ( !isNaN( value ) )
+				return value;
+
+			return defaultValue;
+		} 
+
+		if ( 'boolean' == type ) {
+			return value ? 1 : 0;
+		}
+
+		return defaultValue;	
+	}
+}

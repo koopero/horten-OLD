@@ -72,10 +72,7 @@ function Listener ( options, onData )
 
 	self.get = function ( path )
 	{
-		if ( path == undefined || path == null )
-			path = self.prefix;
-			
-		path = Path ( path ).translate ( self.prefix, self.path );
+		path = self.localToGlobalPath( path );
 
 		if ( !self.horten )
 			self.horten = instance();
@@ -87,12 +84,21 @@ function Listener ( options, onData )
 		return undefined;
 	}
 
+	self.getNumber = function ( path, defaultValue )
+	{
+		path = self.localToGlobalPath( path );
+
+		if ( !self.horten )
+			self.horten = instance();
+
+		if ( path ) {
+			return self.horten.getNumber ( path, defaultValue );
+		}		
+	}
+
 	self.set = function ( value, path, flags )
 	{
-		if ( path == undefined || path == null || path == '/' || path == '' )
-			path = self.prefix;
-		
-		path = Path ( path ).translate ( self.prefix, self.path );
+		path = self.localToGlobalPath( path );
 
 		if ( !self.horten )
 			self.horten = instance();
@@ -105,6 +111,9 @@ function Listener ( options, onData )
 
 	self.localToGlobalPath = function ( path ) 
 	{
+		if ( path == undefined || path == null || path == '/' || path == '' )
+			path = self.prefix;
+
 		return Path ( path ).translate ( self.prefix, self.path );
 	}
 
