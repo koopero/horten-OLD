@@ -91,44 +91,68 @@ describe('Path', function() {
 	describe('orthogonal functions', function () {
 
 		describe('#set', function () {
-			var path = H.Path( 'ortho', 'test' );
-			path.set( {
-				one: 1,
-				two: 2
-			} );
-			path.set( 3, 'three' );
+			it('should work', function () {
+				var path = H.Path( 'ortho', 'test' );
+				path.set( {
+					one: 1,
+					two: 2
+				} );
+				path.set( 3, 'three' );
 
-			assert.deepEqual( H.get( 'ortho/test' ), { one: 1, two: 2, three: 3 } );
+				assert.deepEqual( H.get( 'ortho/test' ), { one: 1, two: 2, three: 3 } );
+			});
+
+			it('should work without object context', function () {
+				var path = H.Path( 'noObject', 'test' );
+				var setter = path.set;
+				setter( 'foobar');
+
+				assert.equal( 'foobar', H.get('noObject/test') );
+			});
 		});
 
 		describe('#get', function () {
-			H.set( { 
-				'foo': 'bar',
-				'bar': 'baz'
-			}, 'test/get' );
-			
-			var path = H.Path( 'test', 'get' );
-			assert.deepEqual(
-				path.get(), 
-				{ 'foo': 'bar', 'bar': 'baz' }
-			);
+			it('should work', function () {
+				H.set( { 
+					'foo': 'bar',
+					'bar': 'baz'
+				}, 'test/get' );
+				
+				var path = H.Path( 'test', 'get' );
+				assert.deepEqual(
+					path.get(), 
+					{ 'foo': 'bar', 'bar': 'baz' }
+				);
 
-			assert.equal( 'baz', path.get('bar') );
+				assert.equal( 'baz', path.get('bar') );
+			});
+
+			it('should work without object context', function () {
+				H.set( 'hello', 'noContext/foo' )
+				var path = H.Path( 'noContext/foo' );
+				var getter = path.get;
+				assert.equal( 'hello', getter() );
+			});
 		});
 
 		describe('#getNumber', function () {
-			H.set( {
-				'number': 5,
-				'notANumber': 'foo',
-				'numberInObject': { value: 6 }
-			}, 'numberTest' );
+			it('should work', function () {
+				H.set( {
+					'number': 5,
+					'notANumber': 'foo',
+					'numberInObject': { value: 6 }
+				}, 'numberTest' );
 
-			var path = H.Path('numberTest');
+				var path = H.Path('numberTest');
 
-			assert.equal( 5, path.getNumber('number', 0 ) );
-			assert.equal( 0, path.getNumber('notANumber', 0 ) );
-			assert.equal( 6, path.getNumber('numberInObject', 0 ) );
+				assert.equal( 5, path.getNumber('number', 0 ) );
+				assert.equal( 0, path.getNumber('notANumber', 0 ) );
+				assert.equal( 6, path.getNumber('numberInObject', 0 ) );
+			});
 		});
-
+		
 	});
+
+
+
 });
