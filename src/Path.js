@@ -64,6 +64,10 @@ function Path ( path ) {
  	self.length = 0;
  	parse( arguments );
 
+ 	//	-----------------
+ 	//	Parsing Functions
+ 	//	-----------------
+
  	function parse( token ) {
  		if ( token === null )
  			return;
@@ -106,134 +110,128 @@ function Path ( path ) {
 		self.length ++;
 		self.string += str + '/';
  	}
- 	
+
+	//	--------------------
+	//	Orthogonal Convience
+	//	--------------------
+
+	self.set = function ( value, path, flags, origin, horten ) {
+		horten = horten || self.horten || instance();
+
+		if ( path == undefined )
+			return horten.set( value, self, flags, origin );
+
+		path = self.append ( path );
+
+		return horten.set ( value, path, flags, origin );
+	}
+
+	self.get = function ( path, horten ) {
+		horten = horten || self.horten || instance();
+
+		if ( path == undefined )
+			return horten.get( self );
+
+		path = self.append ( path );
+
+		return horten.get ( path );	
+	}
+
+	self.getNumber = function ( path, defaultValue ) {
+		var horten = self.horten || instance();
+
+		path = self.append ( path );
+
+		return horten.getNumber( path, defaultValue );
+	}
+
+	//	---------------------------
+	//	Manipulation and comparison
+	//	---------------------------
+
+	self.append = function ( postfix ) {
+		return Path( self.string + postfix);
+	}
+
+	self.slice = function ( i, length ) {
+		var ret = new Path();
+
+		i = parseInt( i ) || 0;
+		if ( i < 0 )
+			i += self.length;
+
+		length = parseInt( length );
+		if ( isNaN( length ) ) {
+			length = self.length;
+		} else if ( length < 0 ) {
+			length += self.length - i;
+		}
+
+		while ( i < self.length && length > 0 ) {
+			var str = self[i];
+			ret[ret.length] = str;
+			ret.length ++;
+			ret.string += str + '/';
+			i++;
+			length --;
+		}
+
+		return ret;
+	}
+
+	/**
+		Translate the Path to a different domain and return the result. If the
+		translation is impossible, undefined will be return. The first parameter,
+		root, will be removed from the left side of the path. If the left side of 
+		the path doesn't match, undefined will be returned. Then, the second parameter,
+		prefix, will be added on the left side. Here's some examples:
+
+			Path( 'foo/bar' ).translate ( 'foo' ) == '/bar/'
+			Path( 'bar' ).translate ( null, 'foo' ) == '/foo/bar/'
+			Path( 'foo/bar').translate ( 'baz', 'blu' ) == undefined
+	*/
+
+	self.translate = function ( root, prefix ) {
+		root = Path ( root );
+		var rootStrLen = root.string.length;
+		
+		if ( self.string.substr( 0, rootStrLen ) != root.string )
+			return undefined;
+		
+		prefix = Path ( prefix );
+		
+		if ( root.string == prefix.string )
+			return self;
+			
+		return Path ( prefix.string + self.string.substr( rootStrLen ) );
+	}
+
+
+	self.is = function ( compare ) {
+		if ( self === compare )
+			return true;
+
+		compare = Path ( compare );
+		return String( self ) === String ( compare );
+	}
+
+
+	self.startsWith = function ( root ) {
+		root = Path ( root );
+		var rootStrLen = root.string.length;
+		
+		if ( self.string.substr( 0, rootStrLen ) != root.string )
+			return false;
+
+		return Path ( self.string.substr( rootStrLen ) );
+	}
+
+	self.toString = function () {
+		return this.string;
+	}
+
  	return self;
 }
  
 
 
-//	--------------------
-//	Orthogonal Convience
-//	--------------------
-
-Path.prototype.set = function ( value, path, flags, origin, horten ) {
-	horten = horten || this.horten || instance();
-
-	if ( path == undefined )
-		return horten.set( value, this, flags, origin );
-
-	path = this.append ( path );
-
-	return horten.set ( value, path, flags, origin );
-}
-
-Path.prototype.get = function ( path, horten ) {
-	horten = horten || this.horten || instance();
-
-	if ( path == undefined )
-		return horten.get( this );
-
-	path = this.append ( path );
-
-	return horten.get ( path );	
-}
-
-Path.prototype.getNumber = function ( path, defaultValue ) {
-	var self = this,
-		horten = self.horten || instance();
-
-	path = self.append ( path );
-
-	return horten.getNumber( path, defaultValue );
-}
-
-//	---------------------------
-//	Manipulation and comparison
-//	---------------------------
-
-Path.prototype.append = function ( postfix ) {
-	return Path(this.string + postfix);
-}
-
-Path.prototype.slice = function ( i, length ) {
-	var 
-		self = this,
-		ret = new Path();
-
-	i = parseInt( i ) || 0;
-	if ( i < 0 )
-		i += self.length;
-
-	length = parseInt( length );
-	if ( isNaN( length ) ) {
-		length = self.length;
-	} else if ( length < 0 ) {
-		length += self.length - i;
-	}
-
-	while ( i < self.length && length > 0 ) {
-		var str = self[i];
-		ret[ret.length] = str;
-		ret.length ++;
-		ret.string += str + '/';
-		i++;
-		length --;
-	}
-
-	return ret;
-}
-
-/**
-	Translate the Path to a different domain and return the result. If the
-	translation is impossible, undefined will be return. The first parameter,
-	root, will be removed from the left side of the path. If the left side of 
-	the path doesn't match, undefined will be returned. Then, the second parameter,
-	prefix, will be added on the left side. Here's some examples:
-
-		Path( 'foo/bar' ).translate ( 'foo' ) == '/bar/'
-		Path( 'bar' ).translate ( null, 'foo' ) == '/foo/bar/'
-		Path( 'foo/bar').translate ( 'baz', 'blu' ) == undefined
-*/
-
-Path.prototype.translate = function ( root, prefix ) {
-	root = Path ( root );
-	var rootStrLen = root.string.length;
-	
-	if ( this.string.substr( 0, rootStrLen ) != root.string )
-		return undefined;
-	
-	prefix = Path ( prefix );
-	
-	if ( root.string == prefix.string )
-		return this;
-		
-	return Path ( prefix.string + this.string.substr( rootStrLen ) );
-}
-
-
-Path.prototype.is = function ( compare ) {
-	var self = this;
-
-	if ( self === compare )
-		return true;
-
-	compare = Path ( compare );
-	return String( self ) === String ( compare );
-}
-
-
-Path.prototype.startsWith = function ( root ) {
-	var self = this;
-
-	root = Path ( root );
-	var rootStrLen = root.string.length;
-	
-	if ( self.string.substr( 0, rootStrLen ) != root.string )
-		return false;
-
-	return Path ( self.string.substr( rootStrLen ) );
-}
-
-Path.prototype.toString = function () {
-	return this.string;
-}
