@@ -1,13 +1,14 @@
 {
   "name": "horten",
-  "description": "Experimental shared-state communication framework. Speaks Javascript, MySQL, OSC and WebSocket.",
+  "description": "The ultimate global variable, Horten is an experimental, schema-less, reactive shared-state communication framework. Speaks Javascript, MySQL, OSC and WebSocket.",
   "keywords": [
+    "reactive",
     "persistent",
     "real-time",
     "WebSocket",
     "OSC"
   ],
-  "version": "0.3.3",
+  "version": "0.3.4",
   "homepage": "https://github.com/koopero/horten",
   "author": {
     "name": "koopero",
