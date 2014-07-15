@@ -149,7 +149,7 @@ function Listener ( options, onData )
 	if ( typeof options == 'object' && options != null ) {
 		self.path = Path( options.path );
 		self.prefix = Path( options.prefix );
-
+		self.name = options.name || self.name;
 		self.primitive = !!options.primitive;
 		
 		

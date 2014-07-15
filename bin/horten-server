@@ -12,10 +12,10 @@ var parser = new ArgumentParser({
 });
 
 parser.addArgument(
-  [ 'url' ],
+  [ '-u', '--url' ],
   {
     help: 'URL of server.',
-    defaultValue: 'http://localhost:31337/'
+    defaultValue: 'http://:31337/'
   }
 );
 
@@ -50,12 +50,27 @@ parser.addArgument(
 )
 
 parser.addArgument(
-  ['--osc'],
+  ['--osc', '-osc'],
   {
     help: 'OSC server port.'
   }
 )
 
+parser.addArgument(
+  ['--osc-client','-oc'],
+  {
+    dest: 'oscClient',
+    help: 'OSC server port.'
+  }
+)
+
+parser.addArgument(
+  ['load'], 
+  {
+    nargs: '*',
+    help: 'Javascript files to load.'
+  }
+);
 
 
 var args = parser.parseArgs();
@@ -81,7 +96,8 @@ if ( args.flash ) {
 
 if ( args.osc ) {
   var OSCServer = new (H.OSC)( {
-      port: parseInt ( args.osc )
+      port: parseInt ( args.osc ),
+      clientPort: parseInt( args.oscClient )
   });
 }
 
@@ -92,5 +108,12 @@ if ( args.mysql ) {
     keepAlive: true,
   });
   mysql.pull();
+}
+
+if ( args.load ) {
+  args.load.forEach( function ( loadFile ) {
+    var fileName = require('path').resolve( process.cwd(), loadFile );
+    require( fileName );
+  })
 }
 
